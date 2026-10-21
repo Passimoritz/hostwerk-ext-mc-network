@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Passimoritz/hostwerk-public/main/sdk/manifest.schema.json",
+  "id": "mc-network",
+  "name": {
+    "de": "Minecraft-Servernetzwerk",
+    "en": "Minecraft server network"
+  },
+  "description": {
+    "de": "Mehrere Minecraft-Server hinter einer Adresse und Java mit Bedrock zusammen: Velocity oder BungeeCord als Proxy, Lobby, direkte Adressen, Wartung je Server, gemeinsame Whitelist/OPs/Bans, Geyser + Floodgate einmal am Proxy, eigener Bedrock Dedicated Server, ViaVersion & Co. – alles hält sich selbst aktuell, mit Rücksprung bei Fehlern.",
+    "en": "Several Minecraft servers behind one address and Java together with Bedrock: Velocity or BungeeCord as the proxy, lobby, direct addresses, maintenance per server, shared whitelist/ops/bans, Geyser + Floodgate once on the proxy, your own Bedrock Dedicated Server, ViaVersion & co. – everything keeps itself up to date, with a way back on errors."
+  },
+  "version": "1.0.0",
+  "author": "Hostwerk",
+  "homepage": "https://github.com/Passimoritz/hostwerk-ext-mc-network",
+  "license": "MIT",
+  "icon": "icon.svg",
+  "banner": "banner.svg",
+  "color": "#16a34a",
+  "category": "games",
+  "hostwerk": ">=3.0.0",
+  "sdkVersion": "3.0",
+  "permissions": [
+    "native",
+    "network"
+  ],
+  "network": [
+    "https://download.geysermc.org",
+    "https://api.geysermc.org",
+    "https://api.modrinth.com",
+    "https://fill.papermc.io",
+    "https://ci.md-5.net",
+    "https://net-secondary.web.minecraft-services.net",
+    "https://www.minecraft.net",
+    "https://api.mojang.com"
+  ],
+  "page": {
+    "title": {
+      "de": "Minecraft-Netzwerk",
+      "en": "Minecraft network"
+    },
+    "description": {
+      "de": "Proxy, Bedrock und Versionen für mehrere Server.",
+      "en": "Proxy, Bedrock and versions for several servers."
+    },
+    "icon": "network",
+    "nav": {
+      "group": "server",
+      "after": "mc"
+    }
+  },
+  "backend": "server/index.js",
+  "ui": "ui/index.js",
+  "provides": [
+    "bedrock"
+  ],
+  "allowExtensions": {
+    "*": [
+      "tabs"
+    ]
+  },
+  "synergies": [
+    {
+      "with": "router",
+      "title": {
+        "de": "Proxy- und Bedrock-Ports von selbst im Router freigeben",
+        "en": "Forward the proxy and Bedrock ports in the router by itself"
+      }
+    },
+    {
+      "with": "motd-studio",
+      "title": {
+        "de": "MOTD gestalten – Bedrock übernimmt sie auf Wunsch",
+        "en": "Design the MOTD – Bedrock can use it as well"
+      }
+    },
+    {
+      "with": "game-network",
+      "title": {
+        "de": "Minecraft-Netzwerk und andere Spiele-Server gemeinsam starten",
+        "en": "Start the Minecraft network and other game servers together"
+      }
+    }
+  ]
+}

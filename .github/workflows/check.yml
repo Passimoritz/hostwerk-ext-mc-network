@@ -1,0 +1,58 @@
+name: Check, test & release
+
+# Same rules as the Hostwerk catalog: manifest, security, design and translations (sdk/check.js --strict),
+# plus the unit tests of the extension (node --test). A tag v1.2.3 (matching "version" in manifest.json)
+# builds <id>-<version>.zip with a SHA-256 file as a GitHub release – the Hostwerk catalog picks it up automatically.
+# Native extensions (SDK 2.7) ship their built interface module (ui/index.js) – it is rebuilt here and must match.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Hostwerk extension check
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Passimoritz/hostwerk-public/main/sdk/check.js -o "$RUNNER_TEMP/check.js"
+          node "$RUNNER_TEMP/check.js" . --strict
+      - name: Interface module is up to date
+        if: hashFiles('ui/src/index.jsx') != ''
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Passimoritz/hostwerk-public/main/sdk/build-native.js -o "$RUNNER_TEMP/build-native.js"
+          npm i --no-save --no-audit --no-fund esbuild@0.25 lucide-react@1 >/dev/null
+          cp ui/index.js "$RUNNER_TEMP/committed.js"
+          node "$RUNNER_TEMP/build-native.js" .
+          git diff --quiet -- ui/index.js || echo "::warning::ui/index.js differs from a fresh build – run the build before tagging."
+          git checkout -- ui/index.js ui/index.css 2>/dev/null || true
+      - name: Unit tests
+        if: hashFiles('tests/*.test.js') != ''
+        run: node --test tests/*.test.js
+      - name: Build package
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          ID=$(node -p "require('./manifest.json').id")
+          VER=$(node -p "require('./manifest.json').version")
+          if [ "v$VER" != "$GITHUB_REF_NAME" ]; then echo "Tag $GITHUB_REF_NAME does not match manifest version $VER"; exit 1; fi
+          # Everything that belongs to the package (pages, widget, server/, ui/, locales/, lang/, data/, docs/ …) –
+          # only the repository tooling stays out (Git, workflows, tests, interface source, installed build tools)
+          zip -r -X "$ID-$VER.zip" . -x ".git/*" ".github/*" "tests/*" "ui/src/*" "node_modules/*" "*.zip" "*.sha256" ".gitignore" "*.DS_Store" "docs/*.md"
+          sha256sum "$ID-$VER.zip" | cut -d' ' -f1 > "$ID-$VER.zip.sha256"
+          echo "Package: $ID-$VER.zip ($(cat "$ID-$VER.zip.sha256"))"
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then gh release upload "$GITHUB_REF_NAME" *.zip *.zip.sha256 --clobber
+          else gh release create "$GITHUB_REF_NAME" *.zip *.zip.sha256 --title "$GITHUB_REF_NAME" --notes-file CHANGELOG.md; fi
