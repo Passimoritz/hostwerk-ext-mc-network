@@ -10,6 +10,8 @@ Löst die Erweiterung **Bedrock-Brücke** und den Minecraft-Teil von **Spiele-Se
 
 ## Die Bausteine, kurz erklärt
 
+**Wo:** Minecraft → Netzwerk & Bedrock und Karte „Verbinden“ jedes Servers – seit 1.1.0 ohne eigenen Seitenleisten-Eintrag; die ganze Seite bleibt unter Erweiterungen → Öffnen
+
 | Baustein | Was es ist | Wo es läuft |
 |---|---|---|
 | **Proxy** (Velocity, BungeeCord) | Die eine Adresse, mit der sich alle verbinden. Er prüft die Konten und schickt die Spieler auf deine Server (Lobby, Survival, Minispiele); mit `/server` wird gewechselt. | Eigener Server in Hostwerk. Von außen erreichbar ist nur der Proxy. |

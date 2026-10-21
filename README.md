@@ -10,6 +10,8 @@ Replaces the extension **Bedrock bridge** and the Minecraft part of **Game serve
 
 ## The pieces, explained
 
+**Where:** Minecraft → Network & Bedrock and the “Connect” card of every server – no own sidebar entry since 1.1.0; the full page stays under Extensions → Open
+
 | Piece | What it is | Where it runs |
 |---|---|---|
 | **Proxy** (Velocity, BungeeCord) | The one address players connect to. It checks their accounts and sends them to your servers (lobby, survival, minigames); `/server` switches. | Its own server in Hostwerk. Only the proxy is reachable from outside. |

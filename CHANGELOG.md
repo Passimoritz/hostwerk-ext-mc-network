@@ -1,3 +1,7 @@
+## 1.1.0
+
+- Lives where it belongs: Minecraft → Network & Bedrock and the “Connect” card of every server – no own sidebar entry any more (Hostwerk 3.0+); the full page stays under Extensions → Open and can be pinned in the sidebar settings. / Steckt jetzt dort, wo sie hingehört: Minecraft → Netzwerk & Bedrock und Karte „Verbinden“ jedes Servers – kein eigener Seitenleisten-Eintrag mehr (Hostwerk 3.0+); die ganze Seite bleibt unter Erweiterungen → Öffnen und lässt sich in den Seitenleisten-Einstellungen anheften.
+
 ## 1.0.0
 
 - First version: one place for everything around several Minecraft servers and platforms. Replaces “Bedrock bridge” and the Minecraft part of “Game server network”. / Erste Fassung: ein Ort für alles rund um mehrere Minecraft-Server und Plattformen. Löst „Bedrock-Brücke“ und den Minecraft-Teil von „Spiele-Server-Verbund“ ab.

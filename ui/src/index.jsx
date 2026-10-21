@@ -142,5 +142,10 @@ function ConnectRow({ s }) {
 
 export default {
   pages: { main: NetworkPage },
-  slots: { 'mc.connect': [{ id: 'mc-network', title: 'Network & Bedrock', Component: ConnectRow, order: 60 }] },
+  slots: {
+    // Seit Hostwerk 3.0 (SDK 3.2) ohne eigenen Seitenleisten-Eintrag ("nav": false) – die ganze Seite als Reiter im passenden Bereich;
+    // Hostwerk blendet dabei ihren Titel aus (Reiter + Herkunftszeile sagen schon, was es ist), die Knöpfe bleiben
+    'minecraft.tabs': [{ id: 'network', title: 'Network & Bedrock', icon: Network, Component: NetworkPage, order: 40 }],
+    'mc.connect': [{ id: 'mc-network', title: 'Network & Bedrock', Component: ConnectRow, order: 60 }],
+  },
 };
