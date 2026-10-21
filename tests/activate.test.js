@@ -19,7 +19,9 @@ test('activate wires everything up and deactivate takes it back', async () => {
   host.ctx.paths = { data: mc.root };
   const net = makeNet();
   host.core = (name) => (name === 'download' ? { fetchJson: net.fetchJson, downloadFile: net.downloadFile, extractZip: net.extractZip } : name === 'jobs' ? { runJob: net.runJob } : { ManagedProcess: class { constructor() { this.extra = {}; this.logs = []; } isRunning() { return false; } } });
-  host.provide = (n, o) => { host.ctx[n] = o; };
+  // The old bridge still runs and owns the name "bedrock" – provide() would refuse it
+  host.ctx.bedrock = { status: () => 'old', isBedrock: () => 'old' };
+  host.provide = (n) => { throw new Error(`provide: "${n}" is already provided`); };
   host.on = () => {};
   const ext = require('../server/index');
   ext.activate(host);
@@ -27,7 +29,7 @@ test('activate wires everything up and deactivate takes it back', async () => {
   assert.strictEqual(types.get('bungeecord').def.proxy, true);
   assert.ok(types.get('bungeecord').def.hidden, 'not in the normal create dialog');
   assert.ok(providers.has('mc-network'));
-  assert.ok(typeof host.ctx.bedrock.isBedrock === 'function');
+  assert.notStrictEqual(host.ctx.bedrock.isBedrock('p', 'x'), 'old', 'service of the old bridge taken over in place');
   assert.strictEqual(settings.mcNetwork.networks.length, 1, 'existing Velocity network taken over');
   const paths = routes.map((r) => `${r[0]} ${r[1]}`);
   for (const p of ['GET /mc-network', 'POST /mc-network', 'POST /mc-network/net/:id/run/:action', 'POST /mc-network/bedrock/:server', 'POST /mc-network/bds', 'POST /mc-network/move-to-proxy/:proxy']) assert.ok(paths.includes(p), p);

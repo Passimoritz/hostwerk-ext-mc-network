@@ -44,11 +44,15 @@ function activate(host) {
   if (typeof mc.registerType === 'function') { try { offs.push(mc.registerType('bungeecord', bungeeType(net), host.id)); } catch (e) { host.log('BungeeCord type:', e.message); } }
   if (ctx.security && typeof ctx.security.addPortProvider === 'function') { ctx.security.addPortProvider('mc-network', () => bds.publicPorts()); offs.push(() => ctx.security.removePortProvider && ctx.security.removePortProvider('mc-network')); }
   try { host.notifications.register('update-failed', { de: 'Netzwerk-Update zurückgenommen', en: 'Network update rolled back' }, { on: true }); } catch { /* older Hostwerk */ }
-  host.provide('bedrock', {
+  const service = {
     status: (id) => bedrock.status(id),
     /** Is this player a Bedrock player (Floodgate name prefix of their network)? */
     isBedrock: (id, name) => { try { const h = mc.get(bedrock.hostOf(id)); if (!h.geyser || !h.geyser.floodgate) return false; return String(name || '').startsWith(bedrock.prefix(h.id)); } catch { return false; } },
-  });
+  };
+  // The old "Bedrock bridge" may still be active until the next start (it steps aside then) and owns the name "bedrock":
+  // take over its service object in place, so every caller gets this extension's answers right away
+  if (ctx.bedrock && typeof ctx.bedrock === 'object') Object.assign(ctx.bedrock, service);
+  else host.provide('bedrock', service);
   host.on('autostart', (want) => (process.env.HW_TEST ? [] : bds.autostartTasks(want)));
 
   let migration = { misplaced: [] };
