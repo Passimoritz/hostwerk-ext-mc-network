@@ -68,6 +68,7 @@ function Addresses({ id, bedrock }) {
         <div className="small"><b>Bedrock edition</b> <InfoTip title={t('Bedrock edition')}>Play → Servers → Add server: address and port separately. Consoles need a small detour – see the Bedrock tab.</InfoTip></div>
         {row(t('At home'), a.bedrock.lan ? `${a.bedrock.lan} · ${t('port')} ${a.bedrock.port}` : null, t('Copy home address (Bedrock)'))}
         {row(t('From outside'), a.bedrock.outside ? `${a.bedrock.outside} · ${t('port')} ${a.bedrock.port}` : null, t('Copy outside address (Bedrock)'))}
+        {a.bedrock.nethernet && <div className="tiny muted">{a.bedrock.webrtcPort ? t('For NetherNet (new Bedrock apps) TCP {port} and UDP {udp} have to be open from outside too – friends still type in only the address and port {port}.', { port: a.bedrock.port, udp: a.bedrock.webrtcPort }) : t('For NetherNet (new Bedrock apps) TCP {port} has to be open from outside too – friends still type in only the address and the port.', { port: a.bedrock.port })}</div>}
       </>}
       {!a.routerAuto && (a.java || a.bedrock) && <div className="tiny muted">{t('From outside, the router has to forward these ports to this PC – the extension “Router & port forwarding” does that by itself.')}</div>}
     </div>

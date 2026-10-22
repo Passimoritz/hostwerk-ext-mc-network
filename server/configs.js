@@ -280,6 +280,9 @@ const GEYSER_KEYS = {
   showCoordinates: [['gameplay', 'show-coordinates'], ['show-coordinates']],
   xboxAchievements: [['gameplay', 'xbox-achievements-enabled'], ['xbox-achievements-enabled']],
   forceResourcePacks: [['gameplay', 'force-resource-packs'], ['force-resource-packs']],
+  // NetherNet (Geyser build 1237+): same place in both layouts – Geyser keeps them when it moves a classic file
+  transport: [['bedrock', 'transport'], ['bedrock', 'transport']],
+  webrtcPort: [['bedrock', 'webrtc-port'], ['bedrock', 'webrtc-port']],
 };
 const geyserNewLayout = (text) => /^java:\s*$/m.test(String(text || '')) || Number(yamlGet(text, ['config-version'])) >= 5;
 
@@ -295,6 +298,8 @@ function geyserConfigText(o = {}) {
     `  motd1: ${q(o.motd1 || 'Minecraft')}`,
     `  motd2: ${q(o.motd2 || 'Java + Bedrock')}`,
     `  server-name: ${q(o.serverName || 'Minecraft')}`,
+    // NetherNet next to RakNet (see geyserNetherNet) – a classic file keeps both keys when Geyser moves it
+    ...(o.webrtcPort ? ['  transport: both', `  webrtc-port: ${Number(o.webrtcPort)}`] : []),
     'remote:',
     `  address: ${q(o.remoteAddress || 'auto')}`,
     `  port: ${Number(o.remotePort) || 25565}`,
@@ -319,9 +324,10 @@ function geyserPatchText(text, o = {}) {
     if (['motd1', 'motd2'].includes(k)) v = String(v).replace(/[\r\n]/g, ' ').slice(0, 80);
     if (k === 'serverName') v = String(v).replace(/[\r\n]/g, ' ').slice(0, 40);
     if (k === 'authType') v = ['online', 'offline'].includes(v) ? v : 'floodgate';
-    if (['port', 'maxPlayers', 'remotePort'].includes(k)) v = Math.round(Number(v)) || 0;
-    // auth-type is an enum – unquoted like Geyser writes it
-    t = k === 'authType' ? yamlSetRaw(t, paths[nu], v) : yamlSet(t, paths[nu], v);
+    if (['port', 'maxPlayers', 'remotePort', 'webrtcPort'].includes(k)) v = Math.round(Number(v)) || 0;
+    if (k === 'transport') v = TRANSPORTS.includes(v) ? v : 'both';
+    // auth-type and transport are enums – unquoted like Geyser writes them
+    t = k === 'authType' || k === 'transport' ? yamlSetRaw(t, paths[nu], v) : yamlSet(t, paths[nu], v);
   }
   return t;
 }
@@ -329,6 +335,38 @@ function yamlSetRaw(text, keys, raw) {
   const t = yamlSet(text, keys, 'X__RAW__X');
   return t.replace('"X__RAW__X"', String(raw));
 }
+
+/*
+ * NetherNet: Bedrock 26.60 (planned for 27 October 2026) drops RakNet – Bedrock players then only join over NetherNet
+ * (signaling over TCP on the Bedrock port, the game over WebRTC/UDP). Geyser supports it since build 1237 but keeps
+ * "transport: raknet" as its default. Hostwerk switches to "both" (old apps keep RakNet, new ones NetherNet) with an own
+ * UDP port for NetherNet – the two cannot share one. Signaling stays Geyser's built-in default (no outside service).
+ */
+const TRANSPORTS = ['nethernet', 'both', 'raknet'];
+/**
+ * Bring a Geyser config to NetherNet → { text, changed, transport, webrtcPort, needsPort }.
+ *   webrtcPort: the UDP port Hostwerk chose (used when the file has none or one that collides with the RakNet port)
+ *   keepRaknet: the person switched back to "raknet" after Hostwerk had switched it on – then the file stays as it is
+ * "nethernet" (only NetherNet; webrtc-port 0 = the Bedrock port) and a valid "both" are kept as they are.
+ */
+function geyserNetherNet(text, { webrtcPort = 0, keepRaknet = false } = {}) {
+  const src = String(text || '');
+  const cur = geyserRead(src);
+  const transport = TRANSPORTS.includes(String(cur.transport || '').toLowerCase()) ? String(cur.transport).toLowerCase() : 'raknet';
+  const port = Number(cur.port) || 19132;
+  const have = Number(cur.webrtcPort) || 0;
+  const res = (t, tr, wp, needsPort = false) => ({ text: t, changed: t !== src, transport: tr, webrtcPort: wp, needsPort });
+  if (transport === 'nethernet') return res(src, 'nethernet', have || port);
+  if (transport === 'raknet' && keepRaknet) return res(src, 'raknet', 0);
+  // "both" needs two different UDP ports – a valid own choice of the person stays
+  const wp = have && have !== port ? have : Number(webrtcPort) || 0;
+  if (!wp || wp === port) return res(src, transport, 0, true);
+  let t = src;
+  if (transport !== 'both') t = geyserPatchText(t, { transport: 'both' });
+  if (have !== wp) t = geyserPatchText(t, { webrtcPort: wp });
+  return res(t, 'both', wp);
+}
+
 /** Read the settings Hostwerk shows from a Geyser config (either layout). */
 function geyserRead(text) {
   const nu = geyserNewLayout(text) ? 0 : 1;
@@ -399,6 +437,6 @@ function pngSize(buf) {
 module.exports = {
   readProps, writeProps, yamlFind, yamlGet, yamlSet, yamlUnquote, paperProxyText, spigotBungeeText,
   tomlTopSet, tomlTopGet, tomlSectionSet, velocityMotd, velocityTopText, velocityRouting, PING, bungeeConfigText, bungeePortText,
-  GEYSER_KEYS, geyserNewLayout, geyserConfigText, geyserPatchText, geyserRead, floodgateText, validPrefix,
+  GEYSER_KEYS, geyserNewLayout, geyserConfigText, geyserPatchText, geyserRead, geyserNetherNet, TRANSPORTS, floodgateText, validPrefix,
   mergeList, shapes, dashUuid, floodgateUuid, keyName, validHost, pickPort, pngSize,
 };

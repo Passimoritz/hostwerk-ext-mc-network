@@ -49,7 +49,7 @@ function activate(host) {
   const timers = [];
   const offs = [];
   if (typeof mc.registerType === 'function') { try { offs.push(mc.registerType('bungeecord', bungeeType(net), host.id)); } catch (e) { host.log('BungeeCord type:', e.message); } }
-  if (ctx.security && typeof ctx.security.addPortProvider === 'function') { ctx.security.addPortProvider('mc-network', () => bds.publicPorts()); offs.push(() => ctx.security.removePortProvider && ctx.security.removePortProvider('mc-network')); }
+  if (ctx.security && typeof ctx.security.addPortProvider === 'function') { ctx.security.addPortProvider('mc-network', () => [...bds.publicPorts(), ...bedrock.publicPorts()]); offs.push(() => ctx.security.removePortProvider && ctx.security.removePortProvider('mc-network')); }
   try { host.notifications.register('update-failed', { de: 'Netzwerk-Update zurückgenommen', en: 'Network update rolled back' }, { on: true }); } catch { /* older Hostwerk */ }
   const service = {
     status: (id) => bedrock.status(id),
@@ -78,6 +78,8 @@ function activate(host) {
   if (!process.env.HW_TEST) {
     const every = (fn, ms, first) => { const a = setTimeout(() => fn().catch(() => {}), first); const b = setInterval(() => fn().catch(() => {}), ms); for (const x of [a, b]) if (x.unref) x.unref(); timers.push(a, b); };
     every(() => bedrock.checkAll(), 6 * 3600000, 4 * 60000);
+    // NetherNet (Bedrock 26.60 drops RakNet on 27 October 2026): switch existing Geyser configs soon after the start
+    { const nn = setTimeout(() => bedrock.netherNetAll().catch(() => {}), 20000); if (nn.unref) nn.unref(); timers.push(nn); }
     every(() => bedrock.applyWhenEmpty(), 10 * 60000, 10 * 60000);
     every(() => bedrock.probeTick(), 30000, 30000);
     every(() => networks.proxyUpdateTick(), 10 * 60000, 7 * 60000);

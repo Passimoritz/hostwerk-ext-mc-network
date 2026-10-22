@@ -508,7 +508,7 @@ class McNetworks {
     return out;
   }
 
-  /** What friends type in: Java (proxy port, TCP) and Bedrock (Geyser port, UDP) – at home and from outside. */
+  /** What friends type in: Java (proxy port, TCP) and Bedrock (Geyser port, UDP – plus TCP and the WebRTC port for NetherNet) – at home and from outside. */
   async addresses(id) {
     const n = this.get(id);
     const p = this.srv(n.proxy);
@@ -521,7 +521,8 @@ class McNetworks {
     const forced = Object.keys(n.forced || {});
     return {
       java: { lan: lan ? `${lan}:${p.port}` : null, outside: outside ? (p.port === 25565 ? outside : `${outside}:${p.port}`) : null, port: p.port, forced },
-      bedrock: p.geyser ? { lan, outside, port: p.geyser.port } : null,
+      // NetherNet: same address and port for the players – from outside TCP <port> and UDP <webrtcPort> have to be open too
+      bedrock: p.geyser ? { lan, outside, port: p.geyser.port, webrtcPort: p.geyser.webrtcPort || null, nethernet: !(p.geyser.nethernet && p.geyser.nethernet.transport === 'raknet') } : null,
       routerAuto: !!(this.ctx.router && this.ctx.router.cfg && this.ctx.router.cfg.auto),
     };
   }

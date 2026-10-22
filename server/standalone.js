@@ -17,8 +17,10 @@
  * running. Probe: "Done (…)!" in the log and an answer on the UDP port (RakNet ping) within 3 minutes. Otherwise the old jar
  * comes back, the build is remembered as failed and skipped until a newer one exists.
  *
+ * NetherNet like Geyser as a plugin (bedrock.js): "transport: both", own UDP port for WebRTC, switched before every start.
+ *
  * Data: the "geyser" entry of the server (same place as Geyser as a plugin, so firewall/router and port choice see it):
- *   { mode: 'standalone', port, floodgate: false, builds: { standalone }, failed, checkedAt, settings, at }
+ *   { mode: 'standalone', port, webrtcPort, nethernet, floodgate: false, builds: { standalone }, failed, checkedAt, settings, at }
  * Files: <server folder>/geyser-standalone/ (Geyser-Standalone.jar, config.yml, logs/)
  */
 const fs = require('fs');
@@ -85,7 +87,7 @@ class GeyserStandalone {
     const pos = this.possible(s);
     return {
       id, name: s.name, type: s.type, mode: 'standalone', standalone: true, possible: pos.ok, why: pos.why || null, enabled: !!g,
-      port: g ? g.port : null, floodgate: false, authType: this.onlineMode(id) ? 'online' : 'offline',
+      port: g ? g.port : null, webrtcPort: g ? g.webrtcPort || null : null, nethernet: g ? this.bedrock.netherNetState(id) : null, floodgate: false, authType: this.onlineMode(id) ? 'online' : 'offline',
       build: g && g.builds ? g.builds.standalone || null : null, failed: g && g.failed ? g.failed : null, checkedAt: g ? g.checkedAt || null : null,
       latest: g ? g.latest || null : null, state: p.state, running: p.isRunning(), ready: !!(p.extra && p.extra.ready),
       serverRunning: this.mc.proc(id).isRunning(), settings: g ? { ...this.defaults(), ...(g.settings || {}) } : null,
@@ -100,7 +102,9 @@ class GeyserStandalone {
     const f = path.join(this.dir(id), 'config.yml');
     const conf = { port: g.port, address: set.address, authType: this.onlineMode(id) ? 'online' : 'offline', motd1: set.motd1 || s.name, motd2: set.motd2 || 'Java + Bedrock', serverName: set.serverName || s.name, passthrough: set.passthrough, maxPlayers: set.maxPlayers, showCoordinates: set.showCoordinates, remoteAddress: '127.0.0.1', remotePort: s.port };
     fs.mkdirSync(path.dirname(f), { recursive: true });
-    fs.writeFileSync(f, fs.existsSync(f) ? C.geyserPatchText(fs.readFileSync(f, 'utf8'), conf) : C.geyserConfigText(conf));
+    fs.writeFileSync(f, fs.existsSync(f) ? C.geyserPatchText(fs.readFileSync(f, 'utf8'), conf) : C.geyserConfigText({ ...conf, webrtcPort: g.webrtcPort }));
+    // NetherNet next to RakNet (keeps what the person set on purpose)
+    this.bedrock.netherNetApply(id);
   }
 
   /** Java for Geyser (Java 21+): the server's own Java when it is new enough, else Hostwerk's Java 21. */
@@ -127,14 +131,15 @@ class GeyserStandalone {
         job.progress(5, this.t('Downloading Geyser …'));
         const info = await this.bedrock.download('geyser', 'standalone', dir, JAR);
         const port = s.geyser && s.geyser.port ? s.geyser.port : await this.bedrock.freePort(id);
-        s.geyser = { mode: 'standalone', port, floodgate: false, at: Date.now(), builds: { standalone: info.build }, checkedAt: Date.now(), settings: { ...this.defaults(), ...this.clean(settings) } };
+        const webrtcPort = s.geyser && s.geyser.webrtcPort && s.geyser.webrtcPort !== port ? s.geyser.webrtcPort : await this.bedrock.freeWebrtcPort(id, port);
+        s.geyser = { mode: 'standalone', port, webrtcPort, floodgate: false, at: Date.now(), builds: { standalone: info.build }, checkedAt: Date.now(), settings: { ...this.defaults(), ...this.clean(settings) } };
         this.writeConfig(id);
         this.save();
         job.progress(70, this.t('Starting Geyser …'));
         let started = false;
         if (this.mc.proc(id).isRunning()) { await this.start(id); started = true; }
         if (this.ctx.router && this.ctx.router.cfg && this.ctx.router.cfg.auto && typeof this.ctx.router.sync === 'function') await this.ctx.router.sync().catch(() => {});
-        return { port, build: info.build, started };
+        return { port, webrtcPort: s.geyser.webrtcPort || null, build: info.build, started };
       } catch (e) {
         delete s.geyser;
         this.save();
@@ -180,6 +185,7 @@ class GeyserStandalone {
     if (p.isRunning()) return;
     if (!fs.existsSync(this.jar(id))) throw new Error(this.t('Geyser is missing – switch it off and on again.'));
     this.writeConfig(id); // port of the server may have changed
+    if (s.geyser.nethernet && s.geyser.nethernet.restartNeeded) { delete s.geyser.nethernet.restartNeeded; this.save(); }
     const java = await this.javaExe(s);
     if (p.setExtra) p.setExtra({ ready: false }); else p.extra.ready = false;
     await p.start({

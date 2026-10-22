@@ -455,6 +455,14 @@
     [
       "Proxy ({})",
       "Proxy ({})"
+    ],
+    [
+      "Minecraft Bedrock (NetherNet): {}",
+      "Minecraft Bedrock (NetherNet): {}"
+    ],
+    [
+      "Geyser Standalone ({})",
+      "Geyser Standalone ({})"
     ]
   ],
   "For Vanilla, Forge and own JARs, which cannot load Geyser: Geyser runs as its own program in front of the server. Without Floodgate, Bedrock players need a Java account.": "Für Vanilla, Forge und eigene JARs, die Geyser nicht laden können: Geyser läuft als eigenes Programm vor dem Server. Ohne Floodgate brauchen Bedrock-Spieler ein Java-Konto.",
@@ -491,5 +499,28 @@
   "Vanilla cannot load plugins – Geyser Standalone runs in front of it instead, or switch the server to Paper (same world).": "Vanilla kann keine Plugins laden – stattdessen läuft Geyser Standalone davor, oder stell den Server auf Paper um (gleiche Welt).",
   "There is no Geyser mod for Forge – Geyser Standalone runs in front of it instead.": "Für Forge gibt es keine Geyser-Mod – stattdessen läuft Geyser Standalone davor.",
   "There is no Geyser plugin for this server type – Geyser Standalone runs in front of it instead.": "Für diesen Servertyp gibt es kein Geyser-Plugin – stattdessen läuft Geyser Standalone davor.",
-  "This Hostwerk has no Bedrock server type yet – please update Hostwerk.": "Dieses Hostwerk kennt den Bedrock-Servertyp noch nicht – bitte Hostwerk aktualisieren."
+  "This Hostwerk has no Bedrock server type yet – please update Hostwerk.": "Dieses Hostwerk kennt den Bedrock-Servertyp noch nicht – bitte Hostwerk aktualisieren.",
+  "NetherNet": "NetherNet",
+  "NetherNet ready": "NetherNet bereit",
+  "NetherNet set up": "NetherNet eingerichtet",
+  "NetherNet after a restart": "NetherNet nach Neustart",
+  "Geyser too old for NetherNet": "Geyser zu alt für NetherNet",
+  "NetherNet does not answer": "NetherNet antwortet nicht",
+  "NetherNet off": "NetherNet aus",
+  "NetherNet not set up yet": "NetherNet noch nicht eingerichtet",
+  "From Bedrock 26.60 (27 October 2026) the Bedrock app only connects over NetherNet. Geyser speaks both: the app first asks over TCP on port {port}, then plays over UDP on port {udp}. Older apps keep using RakNet on UDP {port}. Hostwerk sets this up by itself and opens the ports in the firewall and router.": "Ab Bedrock 26.60 (27. Oktober 2026) verbindet sich die Bedrock-App nur noch über NetherNet. Geyser kann beides: Die App fragt zuerst über TCP auf Port {port} an und spielt dann über UDP auf Port {udp}. Ältere Apps nehmen weiter RakNet auf UDP {port}. Hostwerk richtet das selbst ein und öffnet die Ports in Firewall und Router.",
+  "Geyser needs build {b} or newer – the next update brings it.": "Geyser braucht Build {b} oder neuer – das nächste Update bringt ihn.",
+  "Geyser runs, but nobody answers on TCP port {port} – another program may be using it.": "Geyser läuft, aber auf TCP-Port {port} antwortet niemand – vielleicht belegt ihn ein anderes Programm.",
+  "Switched back to RakNet by hand in Geyser’s config – new Bedrock apps cannot join then.": "In der Geyser-Konfig von Hand auf RakNet zurückgestellt – neue Bedrock-Apps kommen dann nicht mehr hinein.",
+  "For NetherNet (new Bedrock apps) TCP {port} and UDP {udp} have to be open from outside too – friends still type in only the address and port {port}.": "Für NetherNet (neue Bedrock-Apps) müssen von außen zusätzlich TCP {port} und UDP {udp} offen sein – Freunde geben weiterhin nur die Adresse und Port {port} ein.",
+  "For NetherNet (new Bedrock apps) TCP {port} has to be open from outside too – friends still type in only the address and the port.": "Für NetherNet (neue Bedrock-Apps) muss von außen zusätzlich TCP {port} offen sein – Freunde geben weiterhin nur Adresse und Port ein.",
+  "NetherNet not set up: {msg}": "NetherNet nicht eingerichtet: {msg}",
+  "Geyser is too old for NetherNet (build {b} or newer needed): {list}.": "Geyser ist zu alt für NetherNet (Build {b} oder neuer nötig): {list}.",
+  "NetherNet does not answer (is the TCP port taken?): {list}.": "NetherNet antwortet nicht (TCP-Port belegt?): {list}.",
+  "NetherNet is not set up yet: {list}.": "NetherNet ist noch nicht eingerichtet: {list}.",
+  "Bedrock players can join over NetherNet: {list}.": "Bedrock-Spieler kommen über NetherNet hinein: {list}.",
+  "Switched back to RakNet by hand: {list}.": "Von Hand auf RakNet zurückgestellt: {list}.",
+  "No free UDP port found for NetherNet.": "Kein freier UDP-Port für NetherNet gefunden.",
+  "NetherNet (Bedrock)": "NetherNet (Bedrock)",
+  "Geyser Standalone": "Geyser Standalone"
 }

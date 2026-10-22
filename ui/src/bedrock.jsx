@@ -21,6 +21,27 @@ function Ways() {
   );
 }
 
+/**
+ * NetherNet (Bedrock 26.60, 27 October 2026, drops RakNet): state as a badge, what it is as a tooltip.
+ * ready = signaling answers · configured = answers after the next start · restart/old/silent/off/setup = needs attention
+ */
+const nnLabel = (state) => ({ ready: t('NetherNet ready'), configured: t('NetherNet set up'), restart: t('NetherNet after a restart'), old: t('Geyser too old for NetherNet'), silent: t('NetherNet does not answer'), off: t('NetherNet off'), setup: t('NetherNet not set up yet') }[state] || 'NetherNet');
+const NN_KIND = { ready: 'ok', configured: 'info', restart: 'warn', old: 'err', silent: 'err', off: 'warn', setup: 'warn' };
+export function NetherNetBadge({ nn }) {
+  if (!nn) return null;
+  return (
+    <>
+      <span className={`badge ${NN_KIND[nn.state] || ''}`}>{nnLabel(nn.state)}</span>
+      <InfoTip title="NetherNet">
+        {t('From Bedrock 26.60 (27 October 2026) the Bedrock app only connects over NetherNet. Geyser speaks both: the app first asks over TCP on port {port}, then plays over UDP on port {udp}. Older apps keep using RakNet on UDP {port}. Hostwerk sets this up by itself and opens the ports in the firewall and router.', { port: nn.port || '?', udp: nn.webrtcPort || nn.port || '?' })}
+        {nn.state === 'old' ? ` ${t('Geyser needs build {b} or newer – the next update brings it.', { b: nn.minBuild })}` : ''}
+        {nn.state === 'silent' ? ` ${t('Geyser runs, but nobody answers on TCP port {port} – another program may be using it.', { port: nn.port })}` : ''}
+        {nn.state === 'off' ? ` ${t('Switched back to RakNet by hand in Geyser’s config – new Bedrock apps cannot join then.')}` : ''}
+      </InfoTip>
+    </>
+  );
+}
+
 /** Settings of a Geyser installation: server list entry, names, login. */
 function GeyserSettings({ st, onSaved }) {
   const [f, setF] = useState(st.settings);
@@ -67,6 +88,7 @@ export function GeyserCard({ st, title, reload }) {
     <div className="card">
       <div className="card-head"><Smartphone size={16} aria-hidden="true" /><h3 className="ellipsis">{title}</h3>
         {st.enabled ? <span className="badge ok">{t('on · port {port} UDP', { port: st.port })}</span> : <span className="badge">{t('off')}</span>}
+        {st.enabled && <NetherNetBadge nn={st.nethernet} />}
       </div>
       <div className="card-body stack mcn-gap">
         {!st.enabled ? (
@@ -131,6 +153,7 @@ export function StandaloneCard({ st, reload }) {
     <div className="card">
       <div className="card-head"><MonitorSmartphone size={16} aria-hidden="true" /><h3 className="ellipsis">{st.name}</h3><StatusPill state={state} />
         <span className="badge ok">{t('port {port} UDP', { port: st.port })}</span>
+        <NetherNetBadge nn={st.nethernet} />
         <InfoTip title="Geyser Standalone">Geyser runs as its own program and connects to the server like a Java player. It starts and stops together with the server. Without Floodgate (needs a plugin or mod) Bedrock players sign in once with a Java account.</InfoTip>
       </div>
       <div className="card-body stack mcn-gap">

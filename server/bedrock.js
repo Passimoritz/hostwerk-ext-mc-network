@@ -21,14 +21,23 @@
  * Compatibility: Geyser speaks the newest Java protocol. If a server runs an older Minecraft version, ViaVersion has to be
  * on it – the update waits (and says why) or installs ViaVersion first when "Install version bridges by itself" is on.
  *
+ * NetherNet (Bedrock 26.60, 27 October 2026, drops RakNet): Geyser runs "transport: both" – RakNet on the Bedrock port (UDP),
+ * NetherNet signaling on the same port over TCP and the game over WebRTC on an own UDP port (webrtcPort, chosen like the
+ * Bedrock port). Hostwerk switches existing configs over by itself (activation, self-maintenance, before every start) and
+ * keeps what the person set on purpose. Needs Geyser build 1237 or newer – the normal update brings it. Firewall and router
+ * get TCP <port> and UDP <webrtcPort> next to UDP <port> (publicPorts). "NetherNet ready" = signaling answers (GET /v1/join).
+ *
  * Data: the "geyser" entry of the Minecraft server Geyser runs on (the proxy or the single server) – same place as the old
- * bridge, so nothing has to move: { port, floodgate, mode, builds, pending, failed, probe, optionalPack, backends, settings }.
+ * bridge, so nothing has to move: { port, webrtcPort, nethernet, floodgate, mode, builds, pending, failed, probe, optionalPack,
+ * backends, settings }.
  */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const dgram = require('dgram');
+const net = require('net');
+const http = require('http');
 const C = require('./configs');
 
 const API = 'https://download.geysermc.org/v2/projects';
@@ -45,6 +54,10 @@ const ALT = '.hostwerk-alt';
 const CONFIG_DIRS = ['Geyser-Spigot', 'Geyser-Velocity', 'Geyser-BungeeCord', 'Geyser-Fabric', 'Geyser-NeoForge', 'geyser', 'floodgate'];
 const OPTIONAL_PACK = { project: 'geyseroptionalpack', platform: 'geyseroptionalpack', file: 'GeyserOptionalPack.mcpack' };
 const PROBE_MS = 3 * 60000;
+/** First Geyser build with NetherNet (2.11.3-b1237, GeyserMC blog "Preparing for NetherNet"). */
+const NETHERNET_BUILD = 1237;
+/** Bedrock 26.60 without RakNet – planned release date (GeyserMC). */
+const NETHERNET_DATE = '2026-10-27';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ---------------- RakNet ping (Bedrock "unconnected ping") ---------------- */
@@ -81,6 +94,33 @@ function pongPacket(text) {
   return b;
 }
 
+/**
+ * NetherNet signaling answers? GET /v1/join is what the Bedrock app asks first (server list entry) – the answer is the same
+ * status as the RakNet pong, as JSON. → { name, level, version, protocol, players, maxPlayers } or null.
+ */
+function netherNetPing(port, host = '127.0.0.1', timeout = 2000) {
+  return new Promise((resolve) => {
+    const req = http.get({ host, port, path: '/v1/join', timeout, headers: { Host: `${host}:${port}` } }, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (d) => { if (body.length < 8192) body += d; });
+      res.on('end', () => { try { const j = res.statusCode === 200 ? JSON.parse(body) : null; resolve(j && typeof j === 'object' ? j : null); } catch { resolve(null); } });
+    });
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve(null));
+  });
+}
+/** Build number of "2.12.0-1269" (null when unknown). */
+function buildNo(b) { const m = String(b || '').match(/(?:^|[-b])(\d{3,})$/); return m ? Number(m[1]) : null; }
+/** Is a TCP port free on this PC? (NetherNet signaling takes the TCP side of the Bedrock port) */
+function tcpFree(port) {
+  return new Promise((resolve) => {
+    const s = net.createServer();
+    s.once('error', () => resolve(false));
+    s.listen(port, '0.0.0.0', () => s.close(() => resolve(true)));
+  });
+}
+
 /** Is a UDP port free on this PC? */
 function udpFree(port) {
   return new Promise((resolve) => {
@@ -107,7 +147,11 @@ class Bedrock {
   constructor(host, mc, net, opts = {}) {
     this.host = host; this.ctx = host.ctx; this.t = host.t; this.mc = mc; this.net = net;
     this.udpFree = opts.udpFree || udpFree;
+    this.tcpFree = opts.tcpFree || tcpFree;
     this.ping = opts.ping || bedrockPing;
+    this.nnPing = opts.nnPing || netherNetPing;
+    /** id → { pid, ok, at, info } – last answer of NetherNet signaling per Geyser process */
+    this.nnSeen = new Map();
     this.via = null; // set by index.js (version bridges) – for the compatibility check before updates
   }
   save() { this.ctx.settings.save(); }
@@ -135,18 +179,34 @@ class Bedrock {
     const used = new Set(extra);
     for (const x of this.mc.list()) {
       if (x.id !== id && x.geyser && x.geyser.port) used.add(x.geyser.port);
+      if (x.id !== id && x.geyser && x.geyser.webrtcPort) used.add(x.geyser.webrtcPort);
       // Bedrock Dedicated Servers of Hostwerk's core (IPv4 + IPv6 port)
       if (typeof this.mc.isBedrock === 'function' && this.mc.isBedrock(x)) for (const p of [x.port, x.portv6]) if (p) used.add(Number(p));
     }
     const own = (() => { try { return this.mc.get(id).geyser; } catch { return null; } })();
-    try { for (const p of (this.ctx.security && this.ctx.security.publicPorts ? this.ctx.security.publicPorts() : [])) if (p.proto === 'UDP' && !(own && p.port === own.port)) used.add(p.port); } catch { /* no security service */ }
+    try { for (const p of (this.ctx.security && this.ctx.security.publicPorts ? this.ctx.security.publicPorts() : [])) if (p.proto === 'UDP' && !(own && (p.port === own.port || p.port === own.webrtcPort))) used.add(p.port); } catch { /* no security service */ }
     try { const r = this.ctx.router; const list = r && r.forwards && typeof r.forwards.list === 'function' ? r.forwards.list() : []; for (const x of list) if (x.protocol === 'UDP' && x.owner !== this.host.id) used.add(x.port); } catch { /* no router */ }
     return used;
   }
+  /** Bedrock port: free on UDP (RakNet) and on TCP (NetherNet signaling). */
   async freePort(id, extra = []) {
     const used = this.usedUdp(id, extra);
-    for (let p = 19132; p < 19132 + 200; p++) { if (used.has(p)) continue; if (await this.udpFree(p)) return p; }
+    for (let p = 19132; p < 19132 + 200; p++) { if (used.has(p)) continue; if (await this.udpFree(p) && await this.tcpFree(p)) return p; }
     throw this.host.error(409, 'No free UDP port found between 19132 and 19331.');
+  }
+  /** UDP port for NetherNet (WebRTC): right after the Bedrock port when free, never the Bedrock port itself. */
+  async freeWebrtcPort(id, bedrockPort) {
+    const used = this.usedUdp(id, [bedrockPort]);
+    const start = Number(bedrockPort) > 0 && Number(bedrockPort) < 65000 ? Number(bedrockPort) + 1 : 19133;
+    for (let p = start; p < start + 200; p++) { if (used.has(p)) continue; if (await this.udpFree(p)) return p; }
+    throw this.host.error(409, 'No free UDP port found for NetherNet.');
+  }
+  /** Same choice without the bind test – for the synchronous path right before a start (the port is checked again next time). */
+  webrtcPortNow(id, bedrockPort) {
+    const used = this.usedUdp(id, [bedrockPort]);
+    let p = Number(bedrockPort) + 1 || 19133;
+    while (used.has(p) && p < 65535) p++;
+    return p;
   }
 
   /* ---------------- Files ---------------- */
@@ -277,7 +337,7 @@ class Bedrock {
       build: g && g.builds ? g.builds.geyser || null : null, floodgateBuild: g && g.builds ? g.builds.floodgate || null : null,
       pending: g && g.pending ? g.pending : null, held: g && g.held ? g.held : null, failed: g && g.failed ? g.failed : null,
       checkedAt: g ? g.checkedAt || null : null, restartNeeded: !!(g && g.restartNeeded), optionalPack: !!(g && g.optionalPack),
-      configured: !!this.configFile(id), prefix, bedrockPlayers: prefix ? players.map((x) => (typeof x === 'string' ? x : x && x.name)).filter((n) => n && n.startsWith(prefix)) : [],
+      configured: !!this.configFile(id), webrtcPort: g ? g.webrtcPort || null : null, nethernet: g ? this.netherNetState(id) : null, prefix, bedrockPlayers: prefix ? players.map((x) => (typeof x === 'string' ? x : x && x.name)).filter((n) => n && n.startsWith(prefix)) : [],
     };
     if (out.proxy && out.floodgate) {
       let key = null; try { key = fs.readFileSync(this.keyFile(id)); } catch { /* none yet */ }
@@ -314,14 +374,16 @@ class Bedrock {
         const gi = await this.download('geyser', sup.geyser, dir);
         const fi = fg ? await this.download('floodgate', sup.floodgate, dir) : null;
         const port = s.geyser && s.geyser.port ? s.geyser.port : await this.freePort(id);
+        const webrtcPort = s.geyser && s.geyser.webrtcPort && s.geyser.webrtcPort !== port ? s.geyser.webrtcPort : await this.freeWebrtcPort(id, port);
         // Geyser's settings before the first start (an existing file keeps everything else)
         job.progress(45, t('Writing the settings …'));
         const cfgFile = this.configFile(id) || path.join(this.geyserDir(id), 'config.yml');
         fs.mkdirSync(path.dirname(cfgFile), { recursive: true });
         const conf = { port, authType: fg ? 'floodgate' : 'online', motd1: wanted.motd1 || s.name, motd2: wanted.motd2 || 'Java + Bedrock', serverName: wanted.serverName || s.name, passthrough: wanted.passthrough, maxPlayers: wanted.maxPlayers, showCoordinates: wanted.showCoordinates, xboxAchievements: wanted.xboxAchievements };
-        fs.writeFileSync(cfgFile, fs.existsSync(cfgFile) ? C.geyserPatchText(fs.readFileSync(cfgFile, 'utf8'), conf) : C.geyserConfigText({ ...conf, remotePort: s.port }));
-        s.geyser = { ...(s.geyser || {}), port, floodgate: fg, mode: this.isProxy(s) ? 'proxy' : 'server', at: Date.now(), builds: { geyser: gi.build, ...(fi ? { floodgate: fi.build } : {}) }, settings: wanted };
+        fs.writeFileSync(cfgFile, fs.existsSync(cfgFile) ? C.geyserPatchText(fs.readFileSync(cfgFile, 'utf8'), conf) : C.geyserConfigText({ ...conf, remotePort: s.port, webrtcPort }));
+        s.geyser = { ...(s.geyser || {}), port, webrtcPort, floodgate: fg, mode: this.isProxy(s) ? 'proxy' : 'server', at: Date.now(), builds: { geyser: gi.build, ...(fi ? { floodgate: fi.build } : {}) }, settings: wanted };
         delete s.geyser.pending; delete s.geyserOff;
+        this.netherNetApply(id, webrtcPort);
         if (fg) {
           this.ensureKey(id);
           await this.ensureFloodgateConfig(id, this.isProxy(s));
@@ -335,7 +397,7 @@ class Bedrock {
         job.progress(85, t('Putting it into effect …'));
         const restarted = await this.restartIfEmpty(id);
         if (this.ctx.router && this.ctx.router.cfg && this.ctx.router.cfg.auto && typeof this.ctx.router.sync === 'function') await this.ctx.router.sync().catch(() => {});
-        return { port, floodgate: fg, restarted, restartNeeded: !restarted && this.mc.proc(id).isRunning() };
+        return { port, webrtcPort: s.geyser.webrtcPort || null, floodgate: fg, restarted, restartNeeded: !restarted && this.mc.proc(id).isRunning() };
       } catch (e) {
         // Do not stay half on: what this job added goes again, the server stays as it was
         await this.cleanup(id, { keepConfig: true }).catch(() => {});
@@ -484,6 +546,9 @@ class Bedrock {
   applyStaged(id, log) {
     let s; try { s = this.mc.get(id); } catch { return false; }
     if (s.geyser && !this.plugin(s)) return false;
+    // NetherNet: a config that is still on RakNet only is switched right before the start (also brand-new Geyser files)
+    if (s.geyser) { try { this.netherNetApply(id); } catch (e) { if (log) log(this.t('NetherNet not set up: {msg}', { msg: e.message })); } }
+    if (s.geyser && s.geyser.nethernet && s.geyser.nethernet.restartNeeded) { delete s.geyser.nethernet.restartNeeded; this.save(); }
     if (s.geyser && s.geyser.restartNeeded) { delete s.geyser.restartNeeded; this.save(); }
     if (s.geyserOff) { delete s.geyserOff; this.save(); }
     const dir = this.mc.addonDir(id);
@@ -515,6 +580,7 @@ class Bedrock {
    * server got ready, or the server stopped on its own → previous jars back, build remembered as failed, start again.
    */
   async probeTick(now = Date.now()) {
+    await this.netherNetProbe(now).catch(() => {});
     for (const s of this.mc.list()) {
       const g = s.geyser;
       if (!g || !g.probe || !this.plugin(s)) continue;
@@ -580,6 +646,142 @@ class Bedrock {
       if (!this.plugin(s)) continue;
       try { await this.checkUpdate(s.id); } catch (e) { this.note(`mc-network-geyser-${s.id}`, { ok: false, label: `Geyser (${s.name})`, text: this.t('Update check failed: {msg}', { msg: e.message }) }); }
     }
+    await this.netherNetAll().catch(() => {});
+  }
+
+  /* ---------------- NetherNet ---------------- */
+
+  /** Config file of the Geyser serving this server (plugin/mod or Standalone) – null before the first switch-on. */
+  geyserConfig(id) {
+    const s = this.mc.get(id);
+    if (s.geyser && s.geyser.mode === 'standalone') { const f = this.standalone ? path.join(this.standalone.dir(id), 'config.yml') : null; return f && fs.existsSync(f) ? f : null; }
+    return this.configFile(id);
+  }
+  /** Process Geyser runs in: the server itself, or Geyser Standalone's own one. */
+  geyserProc(s) { return s.geyser && s.geyser.mode === 'standalone' && this.standalone ? this.standalone.proc(s.id) : this.mc.proc(s.id); }
+  /**
+   * Switch one Geyser to NetherNet (synchronous – also right before a start). port: WebRTC port to use if one is needed
+   * (else the remembered one, else the next one not taken). Keeps what the person set on purpose: their own "both" port,
+   * "nethernet", and "raknet" once Hostwerk had switched it. → { changed, transport, webrtcPort, portChanged } or null
+   */
+  netherNetApply(id, port) {
+    const s = this.mc.get(id);
+    const g = s.geyser;
+    if (!g) return null;
+    const f = this.geyserConfig(id);
+    if (!f) return null;
+    const text = fs.readFileSync(f, 'utf8');
+    const keepRaknet = !!(g.nethernet && g.nethernet.at);
+    const bedrockPort = Number(C.geyserRead(text).port) || g.port;
+    const want = port || (g.webrtcPort && g.webrtcPort !== bedrockPort ? g.webrtcPort : null);
+    let r = C.geyserNetherNet(text, { webrtcPort: want, keepRaknet });
+    if (r.needsPort) r = C.geyserNetherNet(text, { webrtcPort: this.webrtcPortNow(id, bedrockPort), keepRaknet });
+    if (r.changed) fs.writeFileSync(f, r.text);
+    const key = () => JSON.stringify([g.webrtcPort || null, (g.nethernet || {}).transport || null]);
+    const before = key();
+    // Only an own UDP port goes to firewall/router – "nethernet" on the Bedrock port needs just its TCP side
+    if (r.webrtcPort && r.webrtcPort !== bedrockPort) g.webrtcPort = r.webrtcPort; else delete g.webrtcPort;
+    const first = r.transport !== 'raknet' && !(g.nethernet && g.nethernet.at);
+    g.nethernet = { ...(g.nethernet || {}), transport: r.transport, ...(first ? { at: Date.now() } : {}) };
+    if (r.changed && this.geyserProc(s).isRunning()) g.nethernet.restartNeeded = true;
+    const portChanged = before !== key();
+    if (r.changed || portChanged || first) this.save();
+    return { changed: r.changed, transport: r.transport, webrtcPort: g.webrtcPort || null, portChanged };
+  }
+  /**
+   * Make sure the WebRTC port of one Geyser is really free (bind test while Geyser is off) and switch it to NetherNet.
+   * A running Geyser that changed: plugin → restart as soon as nobody plays (applyWhenEmpty), Standalone → restarted alone.
+   */
+  async netherNetEnsure(id) {
+    const s = this.mc.get(id);
+    const g = s.geyser;
+    if (!g || !this.geyserConfig(id)) return null;
+    const running = this.geyserProc(s).isRunning();
+    const off = !!(g.nethernet && g.nethernet.at && g.nethernet.transport === 'raknet');
+    let port = null;
+    if (!off && g.port && !(g.nethernet && g.nethernet.transport === 'nethernet')) {
+      const used = this.usedUdp(id, [g.port]);
+      const bad = !g.webrtcPort || g.webrtcPort === g.port || used.has(g.webrtcPort) || (!running && !(await this.udpFree(g.webrtcPort)));
+      if (bad) port = await this.freeWebrtcPort(id, g.port).catch(() => null);
+    }
+    const r = this.netherNetApply(id, port);
+    if (r && r.changed && running) {
+      if (g.mode === 'standalone') {
+        if (!this.playersOn(id) && this.standalone) { await this.standalone.restart(id).catch(() => {}); delete g.nethernet.restartNeeded; this.save(); }
+      } else { g.restartNeeded = true; this.save(); }
+    }
+    if (r && r.portChanged && this.ctx.router && this.ctx.router.cfg && this.ctx.router.cfg.auto && typeof this.ctx.router.sync === 'function') await this.ctx.router.sync().catch(() => {});
+    return r;
+  }
+  /**
+   * State for the UI → { state, transport, port, webrtcPort, minBuild, date, answer }
+   *   ready (signaling answers) · configured (set up, answers after the next start) · restart (changed while running) ·
+   *   old (Geyser older than build 1237) · silent (running, signaling does not answer) · off (RakNet by hand) · setup (no config yet)
+   */
+  netherNetState(id) {
+    const s = this.mc.get(id);
+    const g = s.geyser;
+    if (!g) return null;
+    const n = g.nethernet || {};
+    const b = buildNo(g.mode === 'standalone' ? (g.builds || {}).standalone : (g.builds || {}).geyser);
+    const p = this.geyserProc(s);
+    const seen = this.nnSeen.get(id);
+    const current = !!seen && seen.pid === (p.pid || null);
+    let state = 'configured';
+    if (n.transport === 'raknet') state = 'off';
+    else if (!n.transport) state = 'setup';
+    else if (b !== null && b < NETHERNET_BUILD) state = 'old';
+    else if (n.restartNeeded && p.isRunning()) state = 'restart';
+    else if (p.isRunning() && current && seen.ok) state = 'ready';
+    else if (p.isRunning() && current && seen.fails >= 3) state = 'silent';
+    return { state, transport: n.transport || null, port: g.port || null, webrtcPort: g.webrtcPort || null, minBuild: NETHERNET_BUILD, date: NETHERNET_DATE, answer: current && seen.ok ? seen.info : null };
+  }
+  /** Every 30 s: does NetherNet signaling of a running Geyser answer? (once per process; no answer → asked again) */
+  async netherNetProbe(now = Date.now()) {
+    for (const s of this.mc.list()) {
+      const g = s.geyser;
+      if (!g || !g.port || !g.nethernet || !['both', 'nethernet'].includes(g.nethernet.transport)) continue;
+      const p = this.geyserProc(s);
+      if (!p.isRunning() || !(p.extra && p.extra.ready)) { this.nnSeen.delete(s.id); continue; }
+      const pid = p.pid || null;
+      const seen = this.nnSeen.get(s.id);
+      if (seen && seen.pid === pid && seen.ok) continue;
+      const info = await this.nnPing(g.port).catch(() => null);
+      const fails = info ? 0 : (seen && seen.pid === pid ? seen.fails || 0 : 0) + 1;
+      this.nnSeen.set(s.id, { pid, ok: !!info, at: now, fails, info: info ? { name: String(info.name || ''), version: String(info.version || ''), players: Number(info.players) || 0 } : null });
+      // The self-maintenance gets one bundled line – when it answers, or after 3 tries (1½ minutes) without an answer
+      if (info || fails === 3) this.netherNetNote();
+    }
+  }
+  /** Every Geyser on NetherNet with a free port, then one bundled line for the self-maintenance. */
+  async netherNetAll() {
+    for (const s of this.mc.list()) { if (!s.geyser) continue; try { await this.netherNetEnsure(s.id); } catch { /* next round */ } }
+    this.netherNetNote();
+  }
+  netherNetNote() {
+    const list = this.mc.list().filter((s) => s.geyser).map((s) => ({ s, st: this.netherNetState(s.id) }));
+    if (!list.length) return;
+    const by = (state) => list.filter((x) => x.st.state === state).map((x) => x.s.name).join(', ');
+    const parts = [];
+    if (by('old')) parts.push(this.t('Geyser is too old for NetherNet (build {b} or newer needed): {list}.', { b: NETHERNET_BUILD, list: by('old') }));
+    if (by('silent')) parts.push(this.t('NetherNet does not answer (is the TCP port taken?): {list}.', { list: by('silent') }));
+    if (by('setup')) parts.push(this.t('NetherNet is not set up yet: {list}.', { list: by('setup') }));
+    const bad = parts.length > 0;
+    if (!bad) parts.push(this.t('Bedrock players can join over NetherNet: {list}.', { list: list.filter((x) => x.st.state !== 'off').map((x) => x.s.name).join(', ') || '–' }));
+    if (by('off')) parts.push(this.t('Switched back to RakNet by hand: {list}.', { list: by('off') }));
+    this.note('mc-network-nethernet', { ok: !bad && !by('off'), label: 'NetherNet (Bedrock)', text: parts.join(' ') });
+  }
+  /** Ports from outside for NetherNet: TCP on the Bedrock port (signaling) and the own UDP port (WebRTC). */
+  publicPorts() {
+    const out = [];
+    for (const s of this.mc.list()) {
+      const g = s.geyser;
+      if (!g || !g.port || (s.network && s.network.proxy)) continue;
+      if (g.nethernet && g.nethernet.transport === 'raknet') continue;
+      out.push({ port: g.port, proto: 'TCP', label: `Minecraft Bedrock (NetherNet): ${s.name}` });
+      if (g.webrtcPort) out.push({ port: g.webrtcPort, proto: 'UDP', label: `Minecraft Bedrock (NetherNet): ${s.name}` });
+    }
+    return out;
   }
 
   /* ---------------- GeyserOptionalPack ---------------- */
@@ -635,4 +837,4 @@ class Bedrock {
   lanHost() { const r = this.ctx.router && this.ctx.router.cache && this.ctx.router.cache.igd; return (r && r.localIp) || lanIp(); }
 }
 
-module.exports = { Bedrock, PLATFORM, PLUGIN_TYPES, JAR, STAGE, ALT, CONFIG_DIRS, OPTIONAL_PACK, bedrockPing, parsePong, pongPacket, udpFree, lanIp, cmpMc, newestMc, sleep };
+module.exports = { Bedrock, PLATFORM, PLUGIN_TYPES, JAR, STAGE, ALT, CONFIG_DIRS, OPTIONAL_PACK, NETHERNET_BUILD, NETHERNET_DATE, bedrockPing, netherNetPing, buildNo, parsePong, pongPacket, udpFree, tcpFree, lanIp, cmpMc, newestMc, sleep };
