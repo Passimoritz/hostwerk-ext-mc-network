@@ -1,3 +1,7 @@
+## 1.3.1
+
+- German text: “Geyser-Konfiguration” instead of the short “Konfig”. / Deutscher Text: „Geyser-Konfiguration“ statt der Kurzform „Konfig“.
+
 ## 1.3.0
 
 - NetherNet before Bedrock 26.60 (27 October 2026, no RakNet any more): every Geyser (proxy, single server, Standalone) runs `transport: both` with its own UDP port for WebRTC, chosen without collisions (other Geyser, Bedrock servers, public ports, router forwardings, a taken TCP port). Existing configs are switched by themselves – soon after the start, in the self-maintenance and right before every start; a running Geyser restarts when nobody plays (Standalone alone). What you set on purpose stays (own port, `nethernet`, `raknet` set back by hand). / NetherNet vor Bedrock 26.60 (27. Oktober 2026, kein RakNet mehr): Jeder Geyser (Proxy, Einzelserver, Standalone) läuft mit `transport: both` und eigenem UDP-Port für WebRTC, gewählt ohne Überschneidung (anderer Geyser, Bedrock-Server, öffentliche Ports, Router-Freigaben, belegter TCP-Port). Vorhandene Konfigs stellt Hostwerk selbst um – kurz nach dem Start, in der Selbstwartung und direkt vor jedem Start; ein laufender Geyser startet neu, wenn niemand spielt (Standalone allein). Was du bewusst eingestellt hast, bleibt (eigener Port, `nethernet`, von Hand zurück auf `raknet`).
