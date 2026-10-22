@@ -82,7 +82,7 @@ function makeNet(o = {}) {
       if (m) {
         const project = m[1];
         const version = project === 'floodgate' ? '2.2.5' : '2.12.0';
-        const downloads = Object.fromEntries(['spigot', 'velocity', 'bungee', 'bungeecord', 'fabric', 'neoforge', 'geyseroptionalpack'].map((p) => [p, { name: `${project}-${p}.jar`, sha256: 'ab'.repeat(32) }]));
+        const downloads = Object.fromEntries(['spigot', 'velocity', 'bungee', 'bungeecord', 'fabric', 'neoforge', 'standalone', 'geyseroptionalpack'].map((p) => [p, { name: `${project}-${p}.jar`, sha256: 'ab'.repeat(32) }]));
         return { version, build: net.builds[project], downloads };
       }
       if (/api\.mojang\.com/.test(url)) { const name = decodeURIComponent(url.split('/').pop()); if (name === 'Nobody') throw new Error('404'); return { id: '069a79f444e94726a5befca90e38aaf5', name }; }

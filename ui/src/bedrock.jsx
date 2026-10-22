@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, Power, RefreshCw, RotateCw, Network, Box, Play, Square, Download, Trash2, BookOpen, ArrowRightLeft, ScrollText, Plus } from 'lucide-react';
+import { Smartphone, Power, RefreshCw, RotateCw, Network, Box, Play, Square, Download, Trash2, BookOpen, ArrowRightLeft, ScrollText, Plus, ExternalLink, MonitorSmartphone } from 'lucide-react';
 import { get, post, put, del, useApi } from '@hostwerk/api';
 import { Btn, Callout, InfoTip, Seg, Switch, SettingRow, StatusPill, TileEmpty, Modal, Field, toast, confirmDialog } from '@hostwerk/ui';
 import { t, pl } from '@hostwerk/i18n';
@@ -12,9 +12,10 @@ import { runJob, when } from './common';
 
 function Ways() {
   return (
-    <div className="grid grid-3 mcn-grid">
+    <div className="grid grid-auto mcn-grid">
       <div className="card"><div className="card-body stack mcn-gap"><b><Network size={14} aria-hidden="true" /> Geyser on the proxy</b><span className="small muted">Bedrock and Java players play together in the whole network. Geyser translates, Floodgate lets Bedrock players in without a Java account. Recommended for networks.</span></div></div>
       <div className="card"><div className="card-body stack mcn-gap"><b><Box size={14} aria-hidden="true" /> Geyser on one server</b><span className="small muted">The same for a single server without a proxy (Paper, Purpur, Folia, Spigot, Fabric, NeoForge).</span></div></div>
+      <div className="card"><div className="card-body stack mcn-gap"><b><MonitorSmartphone size={14} aria-hidden="true" /> Geyser Standalone</b><span className="small muted">For Vanilla, Forge and own JARs, which cannot load Geyser: Geyser runs as its own program in front of the server. Without Floodgate, Bedrock players need a Java account.</span></div></div>
       <div className="card"><div className="card-body stack mcn-gap"><b><Smartphone size={14} aria-hidden="true" /> Bedrock Dedicated Server</b><span className="small muted">Mojang’s own server: a separate Bedrock world, only Bedrock players, everything exactly like Bedrock (add-ons, redstone). No Java players.</span></div></div>
     </div>
   );
@@ -107,6 +108,50 @@ export function GeyserCard({ st, title, reload }) {
   );
 }
 
+/* ---------------- Geyser Standalone ---------------- */
+
+function StandaloneLog({ id }) {
+  const l = useApi(`/mc-network/standalone/${id}/log?n=60`, [id], { live: true, poll: true });
+  return <pre className="mcn-log" tabIndex={0} aria-label={t('Console')}>{(l.data || []).map((x) => x.l).join('\n') || t('No output yet.')}</pre>;
+}
+
+/** Geyser as its own program in front of a Java server without plugin support. */
+export function StandaloneCard({ st, reload }) {
+  const [busy, setBusy] = useState(null);
+  const [log, setLog] = useState(false);
+  const run = async (action) => { setBusy(action); try { await post(`/mc-network/standalone/${st.id}/run/${action}`); reload(); } catch (e) { toast.error(e.message); } setBusy(null); };
+  const check = async () => { setBusy('check'); try { await post(`/mc-network/bedrock/${st.id}/update`); reload(); } catch (e) { toast.error(e.message); } setBusy(null); };
+  const update = async () => { setBusy('update'); const r = await runJob(`/mc-network/standalone/${st.id}/update`, {}); setBusy(null); if (r) toast.success(r.upToDate ? t('Already up to date') : t('Geyser {b} runs', { b: r.build })); reload(); };
+  const disable = async () => {
+    if (!(await confirmDialog({ title: t('Switch off Geyser Standalone?'), text: t('Geyser stops and its folder is removed. The Java server stays as it is.'), confirm: t('Switch off'), danger: true }))) return;
+    setBusy('off'); try { await del(`/mc-network/bedrock/${st.id}`); reload(); } catch (e) { toast.error(e.message); } setBusy(null);
+  };
+  const state = st.running ? (st.ready ? 'running' : 'starting') : st.state === 'error' ? 'error' : 'stopped';
+  return (
+    <div className="card">
+      <div className="card-head"><MonitorSmartphone size={16} aria-hidden="true" /><h3 className="ellipsis">{st.name}</h3><StatusPill state={state} />
+        <span className="badge ok">{t('port {port} UDP', { port: st.port })}</span>
+        <InfoTip title="Geyser Standalone">Geyser runs as its own program and connects to the server like a Java player. It starts and stops together with the server. Without Floodgate (needs a plugin or mod) Bedrock players sign in once with a Java account.</InfoTip>
+      </div>
+      <div className="card-body stack mcn-gap">
+        <div className="small muted">{[st.build && t('Geyser {b}', { b: st.build }), st.authType === 'offline' ? t('offline server – no account check') : t('Java account needed'), st.checkedAt && t('checked {when}', { when: when(st.checkedAt) })].filter(Boolean).join(' · ')}</div>
+        {st.failed && <div className="tiny muted">{t('Build {b} did not start and was rolled back – Hostwerk waits for a newer one.', { b: st.failed })}</div>}
+        {st.latest && st.build && st.latest !== st.build && st.latest !== st.failed && <Callout kind="info" dismissible={false}>{t('Geyser {b} is out – it is put in as soon as nobody plays.', { b: st.latest })}</Callout>}
+        {!st.serverRunning && <div className="small muted">{t('Starts together with the server.')}</div>}
+        {log && <StandaloneLog id={st.id} />}
+        <div className="row-tight mcn-wrap">
+          {st.running ? <Btn className="xs ghost" icon={RotateCw} busy={busy === 'restart'} onClick={() => run('restart')}>Restart Geyser</Btn> : <Btn className="xs ghost" icon={Play} busy={busy === 'start'} onClick={() => run('start')}>Start Geyser</Btn>}
+          <Btn className="xs ghost" icon={ScrollText} onClick={() => setLog(!log)} aria-expanded={log}>Console</Btn>
+          <Btn className="xs ghost" icon={RefreshCw} busy={busy === 'check'} onClick={check}>Check for updates</Btn>
+          <Btn className="xs ghost" icon={Download} busy={busy === 'update'} onClick={update}>Update now</Btn>
+          <div className="grow" />
+          <Btn className="xs ghost" icon={Power} busy={busy === 'off'} onClick={disable}>Switch off</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Bedrock Dedicated Server ---------------- */
 
 function NewBds({ onClose, onDone }) {
@@ -141,7 +186,7 @@ function BdsLog({ id }) {
   );
 }
 
-function BdsCard({ b, reload }) {
+function BdsCard({ b, reload, coreBds }) {
   const [busy, setBusy] = useState(null);
   const [view, setView] = useState(null); // 'settings' | 'log'
   const [f, setF] = useState(b.settings || {});
@@ -189,6 +234,7 @@ function BdsCard({ b, reload }) {
           <Btn className="xs ghost" icon={ScrollText} onClick={() => setView(view === 'log' ? null : 'log')} aria-expanded={view === 'log'}>Console</Btn>
           <Btn className="xs ghost" icon={Download} busy={busy === 'update'} onClick={update}>Update now</Btn>
           <div className="grow" />
+          {coreBds && <Btn className="xs" icon={ArrowRightLeft} busy={busy === 'move'} onClick={async () => { setBusy('move'); try { const r = await post(`/mc-network/bds/${b.id}/to-core`); toast.success(t('Moved – now under Minecraft')); location.hash = `/mc/${r.id}`; } catch (e) { toast.error(e.message); } setBusy(null); }}>Move to Minecraft</Btn>}
           <button type="button" className="btn ghost xs icon" title={t('Remove')} aria-label={t('Remove {name}', { name: b.name })} onClick={remove}><Trash2 /></button>
         </div>
       </div>
@@ -244,16 +290,18 @@ export function BedrockTab({ n, data, reload }) {
       })}
       <div className="grid grid-2 mcn-grid">
         {n && geyser && <GeyserCard st={geyser} title={t('Network “{name}” (on the proxy)', { name: n.name })} reload={() => { reload(); get(`/mc-network/bedrock/${n.proxy.id}`).then(setGeyser).catch(() => {}); }} />}
-        {solo.filter((s) => s.enabled).map((s) => <GeyserCard key={s.id} st={s} title={s.name} reload={reload} />)}
+        {solo.filter((s) => s.enabled).map((s) => (s.mode === 'standalone' ? <StandaloneCard key={s.id} st={s} reload={reload} /> : <GeyserCard key={s.id} st={s} title={s.name} reload={reload} />))}
         <Guide />
       </div>
-      {solo.some((s) => !s.enabled && s.supported) && (
+      {solo.some((s) => !s.enabled && (s.supported || s.standalonePossible)) && (
         <div className="card">
           <div className="card-head"><h3>Single servers without a proxy</h3></div>
           <ul className="mcn-list card-body">
             {solo.filter((s) => !s.enabled).map((s) => (
               <li key={s.id}><Box size={13} aria-hidden="true" /><span className="grow ellipsis small">{s.name} <span className="tiny muted">{s.type}</span></span>
-                {s.supported ? <Btn className="xs" onClick={async () => { const r = await runJob(`/mc-network/bedrock/${s.id}`, { floodgate: true }); if (r) toast.success(t('Bedrock players can join on port {port}', { port: r.port })); reload(); }}>Allow Bedrock</Btn> : <span className="tiny muted" title={s.why}>{t('not possible')}</span>}
+                {s.supported ? <Btn className="xs" onClick={async () => { const r = await runJob(`/mc-network/bedrock/${s.id}`, { floodgate: true }); if (r) toast.success(t('Bedrock players can join on port {port}', { port: r.port })); reload(); }}>Allow Bedrock</Btn>
+                  : s.standalonePossible ? <Btn className="xs" title={t('Geyser as its own program in front of the server – Bedrock players need a Java account')} onClick={async () => { const r = await runJob(`/mc-network/standalone/${s.id}`, {}); if (r) toast.success(t('Bedrock players can join on port {port}', { port: r.port })); reload(); }}>Geyser Standalone</Btn>
+                  : <span className="tiny muted" title={s.why}>{t('not possible')}</span>}
               </li>
             ))}
           </ul>
@@ -261,12 +309,22 @@ export function BedrockTab({ n, data, reload }) {
       )}
       <div className="card">
         <div className="card-head"><Smartphone size={16} aria-hidden="true" /><h3>Bedrock Dedicated Servers</h3>
-          <InfoTip title={t('Bedrock Dedicated Server')}>Mojang’s official server for the Bedrock edition. Its own world, only Bedrock players. Hostwerk installs it, keeps it up to date (with a way back) and shows its console.</InfoTip>
+          <InfoTip title={t('Bedrock Dedicated Server')}>Mojang’s official server for the Bedrock edition. Its own world, only Bedrock players. Hostwerk installs it, keeps it up to date (with a way back) and shows its console. New ones appear in the Minecraft area like every other server.</InfoTip>
           <div className="right"><Btn className="sm" icon={Plus} onClick={() => setCreating(true)}>New Bedrock server</Btn></div>
         </div>
-        {(data.bds || []).length === 0 && <TileEmpty icon={Smartphone} text={t('No Bedrock Dedicated Server yet.')} />}
+        {(data.bds || []).length === 0 && (data.coreBds || []).length === 0 && <TileEmpty icon={Smartphone} text={t('No Bedrock Dedicated Server yet.')} />}
+        {(data.coreBds || []).length > 0 && (
+          <ul className="mcn-list card-body">
+            {data.coreBds.map((b) => (
+              <li key={b.id}><StatusPill state={b.state === 'running' && !b.ready ? 'starting' : b.state} /><span className="grow ellipsis small">{b.name} <span className="tiny muted">{[b.version, t('port {port} UDP', { port: b.port }), b.players.length ? pl(b.players.length, '{n} player online', '{n} players online') : null].filter(Boolean).join(' · ')}</span></span>
+                <a className="btn xs ghost" href={`#/mc/${b.id}`}><ExternalLink aria-hidden="true" />{t('Open')}</a>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      {(data.bds || []).length > 0 && <div className="grid grid-2 mcn-grid">{data.bds.map((b) => <BdsCard key={b.id} b={b} reload={reload} />)}</div>}
+      {data.bdsCore && (data.bds || []).length > 0 && <Callout kind="info" dismissible={false} title={t('Bedrock servers now live in the Minecraft area')}>{t('Hostwerk knows Bedrock as a server type of its own now – with console, settings, worlds, backups and allow list. Move the servers below there with one click: same worlds, same ports.')}</Callout>}
+      {(data.bds || []).length > 0 && <div className="grid grid-2 mcn-grid">{data.bds.map((b) => <BdsCard key={b.id} b={b} reload={reload} coreBds={!!data.bdsCore} />)}</div>}
       {creating && <NewBds onClose={() => setCreating(false)} onDone={() => { setCreating(false); reload(); }} />}
     </div>
   );

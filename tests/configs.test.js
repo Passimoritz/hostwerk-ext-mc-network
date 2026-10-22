@@ -59,7 +59,10 @@ test('BungeeCord config.yml: ip_forward, online_mode, 127.0.0.1, priorities, for
   assert.match(t, /priorities:\n {2}- "lobby"\n {2}- "pvp"/);
   assert.match(t, /"pvp\.example\.org": "pvp"/);
   assert.match(C.bungeePortText(t, 25600), /host: "0\.0\.0\.0:25600"/);
-  assert.match(C.bungeeConfigText({ port: 1, servers: [] }), /^servers: \{\}$/m);
+  // no server yet: a closed placeholder – BungeeCord does not start with an empty list
+  const empty = C.bungeeConfigText({ port: 1, servers: [] });
+  assert.match(empty, /^servers:\n  none:\n[\s\S]*address: "127\.0\.0\.1:1"\n    restricted: true$/m);
+  assert.match(empty, /priorities:\n  - "none"/);
 });
 
 const NEW_GEYSER = 'bedrock:\n  address: 0.0.0.0\n  port: 19132\njava:\n  address: 127.0.0.1\n  port: 25565\n  auth-type: online\nmotd:\n  primary-motd: Geyser\n  secondary-motd: Another Geyser server.\n  passthrough-motd: true\n  max-players: 100\ngameplay:\n  server-name: Geyser\n  show-coordinates: true\nconfig-version: 11\n';
@@ -107,4 +110,18 @@ test('server.properties, hosts, ports, icon size', () => {
   assert.ok(C.pngSize(png).ok);
   png.writeUInt32BE(128, 16);
   assert.deepStrictEqual(C.pngSize(png), { ok: false, w: 128, h: 64 });
+});
+
+test('Velocity 4 (config 2.9): ping passthrough goes into the [ping-passthrough] section, never a second top-level key', () => {
+  const v4 = ['config-version = "2.9"', 'bind = "0.0.0.0:25565"', 'online-mode = true', '', '[ping-passthrough]', 'version = false', 'players = false', 'description = false', 'favicon = false', 'modinfo = false', '', '[servers]', 'lobby = "127.0.0.1:30066"', ''].join('\n');
+  let t = C.velocityTopText(v4, { pingPassthrough: 'DESCRIPTION' });
+  assert.ok(!/^ping-passthrough\s*=/m.test(t), 'no top-level key next to the section');
+  assert.match(t, /\[ping-passthrough\][^[]*description = true[^[]*favicon = true[^[]*modinfo = true/);
+  assert.match(t, /\[ping-passthrough\][^[]*version = false/);
+  t = C.velocityTopText(`ping-passthrough = "ALL"\n${v4}`, { pingPassthrough: 'ALL' });
+  assert.strictEqual((t.match(/ping-passthrough/g) || []).length, 1, 'a wrongly written top-level key is removed again');
+  assert.match(t, /version = true[\s\S]*players = true/);
+  assert.match(t, /\[servers\]\nlobby/, 'next section untouched');
+  // Velocity 3: still one value at the top
+  assert.match(C.velocityTopText('bind = "0.0.0.0:25577"\n\n[servers]\n', { pingPassthrough: 'MODS' }), /^ping-passthrough = "MODS"$/m);
 });

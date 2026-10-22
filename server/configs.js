@@ -163,6 +163,22 @@ function velocityMotd(line1, line2) {
   return clean(line2) ? `${clean(line1)}\n${clean(line2)}` : clean(line1);
 }
 const PING = ['DISABLED', 'MODS', 'DESCRIPTION', 'ALL'];
+/** Velocity 4: the old modes as switches of the [ping-passthrough] section (same meaning as in Velocity 3). */
+const PING_PARTS = { DISABLED: [], MODS: ['modinfo'], DESCRIPTION: ['description', 'favicon', 'modinfo'], ALL: ['version', 'players', 'description', 'favicon', 'modinfo'] };
+/** key = value inside [section] (added at the end of the section when missing). */
+function tomlSectionSet(toml, section, key, value) {
+  const src = String(toml || '');
+  const head = src.search(new RegExp(`^\\[${section.replace(/[-]/g, '\\-')}\\]\\s*$`, 'm'));
+  if (head < 0) return src;
+  const bodyStart = src.indexOf('\n', head) + 1;
+  const nextRel = src.slice(bodyStart).search(/^\[[^\]\n]+\]\s*$/m);
+  const end = nextRel < 0 ? src.length : bodyStart + nextRel;
+  let body = src.slice(bodyStart, end);
+  const line = `${key} = ${typeof value === 'string' ? JSON.stringify(value) : String(value)}`;
+  const re = new RegExp(`^\\s*${key.replace(/[-]/g, '\\-')}\\s*=.*$`, 'm');
+  body = re.test(body) ? body.replace(re, line) : `${body.replace(/\n*$/, '\n')}${line}\n${nextRel < 0 ? '' : '\n'}`;
+  return src.slice(0, bodyStart) + body + src.slice(end);
+}
 /** Settings Hostwerk owns at the top of velocity.toml. */
 function velocityTopText(toml, o = {}) {
   let t = String(toml || '');
@@ -170,7 +186,16 @@ function velocityTopText(toml, o = {}) {
   t = tomlTopSet(t, 'player-info-forwarding-mode', 'modern');
   if (o.motd !== undefined) t = tomlTopSet(t, 'motd', o.motd);
   if (o.showMaxPlayers !== undefined) t = tomlTopSet(t, 'show-max-players', Math.max(0, Math.min(100000, Math.round(Number(o.showMaxPlayers) || 0))));
-  if (o.pingPassthrough !== undefined) t = tomlTopSet(t, 'ping-passthrough', PING.includes(o.pingPassthrough) ? o.pingPassthrough : 'DISABLED');
+  if (o.pingPassthrough !== undefined) {
+    const mode = PING.includes(o.pingPassthrough) ? o.pingPassthrough : 'DISABLED';
+    // Velocity 4 (config-version 2.9+): [ping-passthrough] is a section with one switch per part – a top-level key next
+    // to it makes Velocity refuse the whole file ("defined twice"). Older Velocity: one top-level value.
+    if (/^\[ping-passthrough\]\s*$/m.test(t)) {
+      t = t.replace(/^\s*ping-passthrough\s*=.*\r?\n?/m, '');
+      const on = PING_PARTS[mode];
+      for (const k of ['version', 'players', 'description', 'favicon', 'modinfo']) t = tomlSectionSet(t, 'ping-passthrough', k, on.includes(k));
+    } else t = tomlTopSet(t, 'ping-passthrough', mode);
+  }
   if (o.kickExisting !== undefined) t = tomlTopSet(t, 'kick-existing-players', !!o.kickExisting);
   if (o.preventProxyConnections !== undefined) t = tomlTopSet(t, 'prevent-client-proxy-connections', !!o.preventProxyConnections);
   return t;
@@ -200,7 +225,10 @@ function velocityRouting(toml, { tryKeys, forced }) {
  */
 function bungeeConfigText({ port, motd, maxPlayers = 100, servers = [], tryKeys, forced = {}, pingPassthrough = false }) {
   const q = JSON.stringify;
-  const prio = (tryKeys || servers.map((s) => s.key));
+  // BungeeCord refuses to start without any server ("No servers defined", seen with the real build 2104): an empty network
+  // gets a closed placeholder (port 1, restricted) – players see "could not connect" instead of a dead proxy
+  const none = !servers.length;
+  const prio = none ? ['none'] : (tryKeys || servers.map((s) => s.key));
   const lines = [
     '# Managed by Hostwerk (Minecraft server network) – change it there, manual changes are overwritten.',
     'online_mode: true',
@@ -209,7 +237,7 @@ function bungeeConfigText({ port, motd, maxPlayers = 100, servers = [], tryKeys,
     'log_commands: false',
     ...(servers.length
       ? ['servers:', ...servers.flatMap((s) => [`  ${s.key}:`, `    motd: ${q(String(s.motd || s.key))}`, `    address: ${q(`127.0.0.1:${s.port}`)}`, `    restricted: ${!!s.restricted}`])]
-      : ['servers: {}']),
+      : ['servers:', '  none:', `    motd: ${q('No server yet')}`, `    address: ${q('127.0.0.1:1')}`, '    restricted: true']),
     'listeners:',
     '- query_port: 25577',
     `  motd: ${q(String(motd || 'A Minecraft network'))}`,
@@ -239,6 +267,9 @@ function bungeePortText(text, port) {
 /** Where each setting lives: [new layout (config-version 5+), classic layout (4)] */
 const GEYSER_KEYS = {
   port: [['bedrock', 'port'], ['bedrock', 'port']],
+  address: [['bedrock', 'address'], ['bedrock', 'address']],
+  remoteAddress: [['java', 'address'], ['remote', 'address']],
+  remotePort: [['java', 'port'], ['remote', 'port']],
   authType: [['java', 'auth-type'], ['remote', 'auth-type']],
   motd1: [['motd', 'primary-motd'], ['bedrock', 'motd1']],
   motd2: [['motd', 'secondary-motd'], ['bedrock', 'motd2']],
@@ -258,16 +289,16 @@ function geyserConfigText(o = {}) {
   return [
     '# Written by Hostwerk (Minecraft server network). Geyser updates this file to its current layout at the first start.',
     'bedrock:',
-    '  address: 0.0.0.0',
+    `  address: ${q(o.address || '0.0.0.0')}`,
     `  port: ${Number(o.port) || 19132}`,
     '  clone-remote-port: false',
     `  motd1: ${q(o.motd1 || 'Minecraft')}`,
     `  motd2: ${q(o.motd2 || 'Java + Bedrock')}`,
     `  server-name: ${q(o.serverName || 'Minecraft')}`,
     'remote:',
-    '  address: auto',
+    `  address: ${q(o.remoteAddress || 'auto')}`,
     `  port: ${Number(o.remotePort) || 25565}`,
-    `  auth-type: ${o.authType === 'online' ? 'online' : 'floodgate'}`,
+    `  auth-type: ${['online', 'offline'].includes(o.authType) ? o.authType : 'floodgate'}`,
     'floodgate-key-file: key.pem',
     `passthrough-motd: ${o.passthrough !== false}`,
     'passthrough-player-counts: true',
@@ -287,8 +318,8 @@ function geyserPatchText(text, o = {}) {
     let v = o[k];
     if (['motd1', 'motd2'].includes(k)) v = String(v).replace(/[\r\n]/g, ' ').slice(0, 80);
     if (k === 'serverName') v = String(v).replace(/[\r\n]/g, ' ').slice(0, 40);
-    if (k === 'authType') v = v === 'online' ? 'online' : 'floodgate';
-    if (['port', 'maxPlayers'].includes(k)) v = Math.round(Number(v)) || 0;
+    if (k === 'authType') v = ['online', 'offline'].includes(v) ? v : 'floodgate';
+    if (['port', 'maxPlayers', 'remotePort'].includes(k)) v = Math.round(Number(v)) || 0;
     // auth-type is an enum – unquoted like Geyser writes it
     t = k === 'authType' ? yamlSetRaw(t, paths[nu], v) : yamlSet(t, paths[nu], v);
   }
@@ -367,7 +398,7 @@ function pngSize(buf) {
 
 module.exports = {
   readProps, writeProps, yamlFind, yamlGet, yamlSet, yamlUnquote, paperProxyText, spigotBungeeText,
-  tomlTopSet, tomlTopGet, velocityMotd, velocityTopText, velocityRouting, PING, bungeeConfigText, bungeePortText,
+  tomlTopSet, tomlTopGet, tomlSectionSet, velocityMotd, velocityTopText, velocityRouting, PING, bungeeConfigText, bungeePortText,
   GEYSER_KEYS, geyserNewLayout, geyserConfigText, geyserPatchText, geyserRead, floodgateText, validPrefix,
   mergeList, shapes, dashUuid, floodgateUuid, keyName, validHost, pickPort, pngSize,
 };

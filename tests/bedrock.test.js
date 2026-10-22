@@ -169,3 +169,24 @@ test('RakNet ping: packet out, pong parsed (players for status and probe)', asyn
   assert.deepStrictEqual([r.motd, r.players, r.max, r.version], ['Mein Netz', 3, 20, '1.26.50']);
   assert.strictEqual(parsePong(Buffer.from('nope')), null);
 });
+
+test('Floodgate config starts from Floodgate’s own template (a short one makes Floodgate fail) – values kept, placeholders filled', async () => {
+  const { makeHost, makeMc } = require('./helpers');
+  const mc = makeMc([{ id: 'p', name: 'Proxy', type: 'velocity', port: 25577 }]);
+  const tpl = 'key-file-name: key.pem\nusername-prefix: "."\nreplace-spaces: true\nplayer-link:\n  enable-global-linking: true\nmetrics:\n  enabled: true\n  uuid: ${metrics.uuid}\nconfig-version: 3\n';
+  const net = { extractZip: async (zip, dir) => { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'config.yml'), tpl); fs.writeFileSync(path.join(dir, 'proxy-config.yml'), '>> config.yml\n>>| 16\nsend-floodgate-data: true\n>>|\n'); } };
+  const { Bedrock: B2 } = require('../server/bedrock');
+  const b = new B2(makeHost({}), mc, net, { udpFree: async () => true });
+  const dir = mc.addonDir('p');
+  fs.mkdirSync(path.join(dir, 'floodgate'), { recursive: true });
+  assert.strictEqual(await b.ensureFloodgateConfig('p', true), false, 'without a Floodgate jar nothing changes');
+  fs.writeFileSync(path.join(dir, 'floodgate-velocity.jar'), 'jar');
+  fs.writeFileSync(path.join(dir, 'floodgate', 'config.yml'), 'key-file-name: key.pem\nconfig-version: 3\nusername-prefix: "*"\n');
+  assert.strictEqual(await b.ensureFloodgateConfig('p', true), true, 'short config of 1.0/1.1 repaired');
+  const t = fs.readFileSync(path.join(dir, 'floodgate', 'config.yml'), 'utf8');
+  assert.match(t, /^metrics:\n  enabled: true\n  uuid: [0-9a-f-]{36}$/m);
+  assert.ok(!/\$\{|>>/.test(t), 'no template directives left');
+  assert.match(t, /^username-prefix: "\*"$/m, 'own prefix kept');
+  assert.match(t, /^send-floodgate-data: true$/m, 'proxy hands the data on');
+  assert.strictEqual(await b.ensureFloodgateConfig('p', true), false, 'complete config stays as it is');
+});

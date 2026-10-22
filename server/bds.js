@@ -289,6 +289,37 @@ class BedrockServers {
     this.portsChanged();
     return { ok: true };
   }
+  /**
+   * Hostwerk 3.x knows Bedrock as a server type of its own (Minecraft area: console, settings, worlds, backups, allow list,
+   * updates with a way back). Move a server of this extension there: same folder content, same ports, same worlds.
+   * mc: Hostwerk's Minecraft manager (with isBedrock). → { id } of the server in Hostwerk's list
+   */
+  async moveToCore(id, mc) {
+    if (!mc || typeof mc.isBedrock !== 'function') throw this.host.error(400, 'This Hostwerk has no Bedrock server type yet – please update Hostwerk.');
+    const b = this.get(id);
+    const wasRunning = this.proc(b).isRunning();
+    if (wasRunning) await this.stop(id);
+    const slug = (x) => String(x || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'bedrock';
+    let nid = slug(b.name);
+    while (mc.list().some((s) => s.id === nid) || fs.existsSync(mc.paths.mcDir(nid))) nid = `${slug(b.name)}-${crypto.randomBytes(2).toString('hex')}`;
+    const from = this.dir(b);
+    const to = mc.paths.mcDir(nid);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    try { fs.renameSync(from, to); } catch { fs.cpSync(from, to, { recursive: true }); fs.rmSync(from, { recursive: true, force: true }); }
+    mc.list().push({
+      id: nid, name: b.name, type: 'bedrock', version: b.version || null, build: null, port: b.port, portv6: b.portv6,
+      memMin: null, memMax: null, javaMajor: null, jvmFlags: null, extraArgs: '', autostart: !!b.autostart, autoRestart: true,
+      createdAt: b.createdAt || Date.now(), eulaAt: b.eulaAt || Date.now(), movedFrom: 'mc-network',
+      nightlyBackup: { enabled: true, everyHours: 24, keep: 7, hour: 3, since: Date.now() },
+    });
+    this.cfg.bds = this.list().filter((x) => x.id !== id);
+    this.procs.delete(id);
+    this.save();
+    if (typeof mc.proc === 'function') mc.proc(nid);
+    if (wasRunning) await mc.start(nid).catch(() => {});
+    this.portsChanged();
+    return { id: nid };
+  }
   autostartTasks(want) { return this.list().filter((b) => want(b.autostart, `bds:${b.id}`)).map((b) => () => this.start(b.id).catch(() => {})); }
   async stopAll() { for (const b of this.list()) { try { if (this.proc(b).isRunning()) await this.stop(b.id); } catch { /* next */ } } }
 }

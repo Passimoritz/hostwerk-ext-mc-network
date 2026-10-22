@@ -19,7 +19,8 @@ Replaces the extension **Bedrock bridge** and the Minecraft part of **Game serve
 | **Geyser** | The *Bedrock bridge*: translates between the Bedrock edition (phone, console, Windows) and Java, so both play together on your Java servers. | **Once on the proxy** for a whole network – or on a single server without a proxy. Never on the servers behind a proxy. |
 | **Floodgate** | Lets Bedrock players in without a Java account. | On the proxy **and** on every server behind it, all with the **same key** – otherwise the servers kick Bedrock players. |
 | **ViaVersion / ViaBackwards / ViaRewind** | Version bridges: players with a newer / older / very old Minecraft version can join. | On every server behind the proxy (the proxy itself accepts every version). |
-| **Bedrock Dedicated Server** | Mojang’s own server for the Bedrock edition: a separate Bedrock world, only Bedrock players, add-ons and redstone exactly like Bedrock. No Java players. | Its own program, managed on this page. |
+| **Geyser Standalone** | Geyser as its own program in front of a Java server that cannot load it (Vanilla, Forge, own JARs). Without Floodgate, Bedrock players need a Java account (they sign in once). | Next to the server (`geyser-standalone/` in its folder), starts and stops with it. |
+| **Bedrock Dedicated Server** | Mojang’s own server for the Bedrock edition: a separate Bedrock world, only Bedrock players, add-ons and redstone exactly like Bedrock. No Java players. | Since Hostwerk 3.x a server type of the core (Minecraft area: console, settings, worlds, backups, allow list); on older Hostwerk its own program on this page. |
 
 ## What it does
 
@@ -30,12 +31,13 @@ Replaces the extension **Bedrock bridge** and the Minecraft part of **Game serve
 - **Start/stop in order**: servers first (each until it is ready), the proxy last; stop the other way round
 - **Checks**: only the proxy reachable, forwarding secret on every server, `server-ip=127.0.0.1`, `online-mode` right, Floodgate key everywhere
 - **Addresses for friends**: Java and Bedrock, at home and from outside (DynDNS, remote access domain or public IP), forwarding through “Router & port forwarding”
-- **Bedrock** – three ways side by side: Geyser + Floodgate on the proxy, on a single server, or your own Bedrock Dedicated Server (install, settings, console, players, public ports)
+- **Bedrock** – four ways side by side: Geyser + Floodgate on the proxy, on a single server, Geyser Standalone in front of Vanilla/Forge/own JARs, or your own Bedrock Dedicated Server (created in Hostwerk’s Minecraft area when Hostwerk has the type; older servers of this extension move there with one click – same worlds, same ports)
 - **Without maintenance** (everything also in Settings → Self-maintenance):
   - Geyser/Floodgate from the GeyserMC download API with SHA-256, staged and put in when nobody is online; afterwards a RakNet ping must answer – otherwise the previous jars come back and the build is skipped
   - Compatibility first: a Geyser that speaks a newer Java version than a server waits – or installs ViaVersion on that server first (switchable)
   - Proxy builds (Velocity from PaperMC, BungeeCord from SpigotMC’s build server with MD5) when nobody is online, with a way back if the proxy does not get ready
-  - Bedrock Dedicated Server from Mojang’s official download list: new version unpacked next to the old one, worlds and settings moved over, probe, way back
+  - Geyser Standalone from the GeyserMC download API (SHA-256): new build swapped in, Geyser restarted alone (the Java server keeps running), RakNet ping as the probe, otherwise the previous jar comes back
+  - Bedrock Dedicated Server from Mojang’s official download list: new version unpacked next to the old one, worlds and settings moved over, probe, way back (on Hostwerk 3.x the core does this)
   - ViaVersion & co. through Hostwerk’s own plugin updates (Modrinth)
 
 ## Moving over from “Bedrock bridge”
@@ -58,6 +60,8 @@ Removing the extension deletes nothing.
 
 ```bash
 node --test tests/*.test.js          # tests (no Java, no server, no network – everything simulated)
+# real programs (Velocity, Geyser, Floodgate, BungeeCord, Geyser Standalone, Paper, BDS) – in the Hostwerk repo:
+node scripts/real-mc-probes.js       # only one Minecraft server at a time: backend/BDS probes are skipped while another one runs
 node build-native.js .               # build the interface (sdk/build-native.js from hostwerk-public)
 node check.js . --strict             # same check as the catalogue (sdk/check.js)
 ```

@@ -41,3 +41,36 @@ test('activate wires everything up and deactivate takes it back', async () => {
   await ext.deactivate();
   assert.ok(!mc.geyser && !types.has('bungeecord') && !providers.has('mc-network'));
 });
+
+test('with Hostwerk’s Bedrock server type: new Bedrock servers go to the core, Standalone routes exist', async () => {
+  const servers = [{ id: 'v', name: 'Vanilla', type: 'vanilla', version: '26.3', port: 25565 }, { id: 'bed', name: 'Insel', type: 'bedrock', version: '1.26.52.3', port: 19140, portv6: 19141 }];
+  const mc = makeMc(servers);
+  mc.isBedrock = (s) => s.type === 'bedrock';
+  mc.bedrock = {};
+  const created = [];
+  mc.create = async (b) => { created.push(b); return { id: 'job-core' }; };
+  const host = makeHost({});
+  const routes = [];
+  const verb = (m) => (p, fn) => routes.push([m, p, fn]);
+  host.router = { get: verb('GET'), post: verb('POST'), put: verb('PUT'), delete: verb('DELETE') };
+  host.ctx.minecraft = mc;
+  host.ctx.paths = { data: mc.root };
+  const net = makeNet();
+  host.core = (name) => (name === 'download' ? { fetchJson: net.fetchJson, downloadFile: net.downloadFile, extractZip: net.extractZip } : name === 'jobs' ? { runJob: net.runJob } : { ManagedProcess: class { constructor() { this.extra = {}; this.logs = []; } isRunning() { return false; } } });
+  host.provide = () => {};
+  const events = [];
+  host.on = (ev) => { events.push(ev); };
+  const ext = require('../server/index');
+  ext.activate(host);
+  assert.ok(events.includes('service'), 'Geyser Standalone follows its server through the service event');
+  const call = async (m, p, req) => { let out; await routes.find((r) => r[0] === m && r[1] === p)[2]({ query: {}, params: {}, body: {}, ...req }, { json: (x) => { out = x; } }); return out; };
+  const o = await call('GET', '/mc-network');
+  assert.deepStrictEqual([o.bdsCore, o.coreBds.map((b) => b.id), o.bedrock.map((b) => b.id)], [true, ['bed'], ['v']]);
+  assert.strictEqual(o.bedrock[0].standalonePossible, true);
+  await assert.rejects(() => call('POST', '/mc-network/bds', { body: { name: 'X' } }), /EULA/);
+  const r = await call('POST', '/mc-network/bds', { body: { name: 'Neu', eula: true, gamemode: 'creative' } });
+  assert.deepStrictEqual([r.job, created[0].type, created[0].name, created[0].gamemode], ['job-core', 'bedrock', 'Neu', 'creative']);
+  const paths = routes.map((x) => `${x[0]} ${x[1]}`);
+  for (const p of ['POST /mc-network/standalone/:server', 'POST /mc-network/standalone/:server/update', 'GET /mc-network/standalone/:server/log', 'POST /mc-network/bds/:id/to-core']) assert.ok(paths.includes(p), p);
+  await ext.deactivate();
+});

@@ -19,7 +19,8 @@ Löst die Erweiterung **Bedrock-Brücke** und den Minecraft-Teil von **Spiele-Se
 | **Geyser** | Die eigentliche *Bedrock-Brücke*: übersetzt zwischen Bedrock Edition (Handy, Konsole, Windows) und Java, damit beide zusammen auf deinen Java-Servern spielen. | **Einmal am Proxy** für das ganze Netzwerk – oder auf einem einzelnen Server ohne Proxy. Nie auf den Servern hinter einem Proxy. |
 | **Floodgate** | Lässt Bedrock-Spieler ohne Java-Konto herein. | Am Proxy **und** auf jedem Server dahinter, überall mit **demselben Schlüssel** – sonst werfen die Server Bedrock-Spieler raus. |
 | **ViaVersion / ViaBackwards / ViaRewind** | Versions-Brücken: Spieler mit neuerer / älterer / sehr alter Minecraft-Version kommen hinein. | Auf jedem Server hinter dem Proxy (der Proxy selbst nimmt jede Version). |
-| **Bedrock Dedicated Server** | Mojangs eigener Server für die Bedrock Edition: eigene Bedrock-Welt, nur Bedrock-Spieler, Add-ons und Redstone genau wie in Bedrock. Keine Java-Spieler. | Eigenes Programm, verwaltet auf dieser Seite. |
+| **Geyser Standalone** | Geyser als eigenes Programm vor einem Java-Server, der es nicht laden kann (Vanilla, Forge, eigene JARs). Ohne Floodgate brauchen Bedrock-Spieler ein Java-Konto (einmal anmelden). | Neben dem Server (`geyser-standalone/` in seinem Ordner), startet und stoppt mit ihm. |
+| **Bedrock Dedicated Server** | Mojangs eigener Server für die Bedrock Edition: eigene Bedrock-Welt, nur Bedrock-Spieler, Add-ons und Redstone genau wie in Bedrock. Keine Java-Spieler. | Seit Hostwerk 3.x ein Servertyp des Kerns (Minecraft-Bereich: Konsole, Einstellungen, Welten, Sicherungen, Erlaubnisliste); bei älterem Hostwerk eigenes Programm auf dieser Seite. |
 
 ## Was es kann
 
@@ -30,12 +31,13 @@ Löst die Erweiterung **Bedrock-Brücke** und den Minecraft-Teil von **Spiele-Se
 - **Starten/Stoppen der Reihe nach**: erst die Server (jeweils bis bereit), zuletzt der Proxy; Stoppen umgekehrt
 - **Prüfung**: nur der Proxy erreichbar, Weiterleitungs-Schlüssel auf jedem Server, `server-ip=127.0.0.1`, `online-mode` richtig, Floodgate-Schlüssel überall
 - **Adressen für Freunde**: Java und Bedrock, zu Hause und von außen (DynDNS, Fernzugriffs-Domain oder öffentliche IP), Freigabe über „Router & Portfreigaben“
-- **Bedrock** – drei Wege nebeneinander: Geyser + Floodgate am Proxy, auf einem einzelnen Server oder ein eigener Bedrock Dedicated Server (Installation, Einstellungen, Konsole, Spieler, öffentliche Ports)
+- **Bedrock** – vier Wege nebeneinander: Geyser + Floodgate am Proxy, auf einem einzelnen Server, Geyser Standalone vor Vanilla/Forge/eigenen JARs oder ein eigener Bedrock Dedicated Server (angelegt im Minecraft-Bereich von Hostwerk, wenn Hostwerk den Typ kennt; ältere Server dieser Erweiterung ziehen mit einem Klick dorthin um – gleiche Welten, gleiche Ports)
 - **Ohne Wartung** (alles auch unter Einstellungen → Selbstwartung):
   - Geyser/Floodgate aus der GeyserMC-Download-API mit SHA-256, vorbereitet und eingespielt, wenn niemand online ist; danach muss ein RakNet-Ping antworten – sonst kommen die vorigen JARs zurück und der Build wird übersprungen
   - Erst die Verträglichkeit: Spricht ein neues Geyser eine neuere Java-Version als ein Server, wartet das Update – oder installiert vorher ViaVersion auf diesem Server (abschaltbar)
   - Proxy-Builds (Velocity von PaperMC, BungeeCord vom Build-Server von SpigotMC mit MD5), wenn niemand online ist, mit Rückweg, falls der Proxy nicht bereit wird
-  - Bedrock Dedicated Server aus Mojangs offizieller Download-Liste: neue Version neben der alten entpackt, Welten und Einstellungen übernommen, Probe, Rückweg
+  - Geyser Standalone aus der GeyserMC-Download-API (SHA-256): neuer Build eingesetzt, nur Geyser neu gestartet (der Java-Server läuft weiter), RakNet-Ping als Probe, sonst kommt die vorige JAR zurück
+  - Bedrock Dedicated Server aus Mojangs offizieller Download-Liste: neue Version neben der alten entpackt, Welten und Einstellungen übernommen, Probe, Rückweg (bei Hostwerk 3.x übernimmt das der Kern)
   - ViaVersion & Co. über Hostwerks eigene Plugin-Updates (Modrinth)
 
 ## Umzug aus der „Bedrock-Brücke“
@@ -58,6 +60,8 @@ Entfernen der Erweiterung löscht nichts.
 
 ```bash
 node --test tests/*.test.js          # Tests (ohne Java, ohne Server, ohne Netz – alles nachgebildet)
+# echte Programme (Velocity, Geyser, Floodgate, BungeeCord, Geyser Standalone, Paper, BDS) – im Hostwerk-Repo:
+node scripts/real-mc-probes.js       # nur ein Minecraft-Server zugleich: Backend-/BDS-Proben fallen aus, solange ein anderer läuft
 node build-native.js .               # Oberfläche bauen (sdk/build-native.js aus hostwerk-public)
 node check.js . --strict             # dieselbe Prüfung wie der Katalog (sdk/check.js)
 ```

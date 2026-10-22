@@ -114,10 +114,13 @@ class Bedrock {
   note(key, x) { try { if (this.ctx.keeper) this.ctx.keeper.record(key, x); } catch { /* no keeper */ } }
 
   supported(s) {
+    if (typeof this.mc.isBedrock === 'function' && this.mc.isBedrock(s)) return { ok: false, why: this.t('This is a Bedrock server – Bedrock players join it directly.'), bedrockServer: true };
+    if (s.geyser && s.geyser.mode === 'standalone') return { ok: false, why: this.t('Geyser runs as its own program in front of this server (Geyser Standalone).'), standalone: true };
     const p = PLATFORM[s.type];
     if (p) return { ok: true, geyser: p[0], floodgate: p[1] };
-    const why = s.type === 'vanilla' ? this.t('Vanilla cannot load plugins – switch the server to Paper (same world) or put it behind a proxy.') : s.type === 'forge' ? this.t('There is no Geyser for Forge – use NeoForge or Paper.') : this.t('There is no Geyser for this server type.');
-    return { ok: false, why };
+    const why = s.type === 'vanilla' ? this.t('Vanilla cannot load plugins – Geyser Standalone runs in front of it instead, or switch the server to Paper (same world).') : s.type === 'forge' ? this.t('There is no Geyser mod for Forge – Geyser Standalone runs in front of it instead.') : this.t('There is no Geyser plugin for this server type – Geyser Standalone runs in front of it instead.');
+    // Standalone: Geyser as its own program (standalone.js) – for every Java server that cannot load it
+    return { ok: false, why, standalone: !this.isProxy(s) && !(s.network && s.network.proxy) };
   }
   isProxy(s) { return !!s && this.mc.isProxy(s); }
   /** Servers behind a proxy (members of its network). */
@@ -130,7 +133,11 @@ class Bedrock {
   /** UDP ports others want: other Geyser instances, Bedrock Dedicated Servers, public UDP ports, router forwardings. */
   usedUdp(id, extra = []) {
     const used = new Set(extra);
-    for (const x of this.mc.list()) if (x.id !== id && x.geyser && x.geyser.port) used.add(x.geyser.port);
+    for (const x of this.mc.list()) {
+      if (x.id !== id && x.geyser && x.geyser.port) used.add(x.geyser.port);
+      // Bedrock Dedicated Servers of Hostwerk's core (IPv4 + IPv6 port)
+      if (typeof this.mc.isBedrock === 'function' && this.mc.isBedrock(x)) for (const p of [x.port, x.portv6]) if (p) used.add(Number(p));
+    }
     const own = (() => { try { return this.mc.get(id).geyser; } catch { return null; } })();
     try { for (const p of (this.ctx.security && this.ctx.security.publicPorts ? this.ctx.security.publicPorts() : [])) if (p.proto === 'UDP' && !(own && p.port === own.port)) used.add(p.port); } catch { /* no security service */ }
     try { const r = this.ctx.router; const list = r && r.forwards && typeof r.forwards.list === 'function' ? r.forwards.list() : []; for (const x of list) if (x.protocol === 'UDP' && x.owner !== this.host.id) used.add(x.port); } catch { /* no router */ }
@@ -166,6 +173,42 @@ class Bedrock {
     return fs.readFileSync(f);
   }
   hasKey(id, key) { try { return fs.readFileSync(this.keyFile(id)).equals(key); } catch { return false; } }
+  /**
+   * Floodgate does NOT fill in missing settings: a short config makes it fail at the start (seen with Floodgate 2.2.5 on
+   * Velocity – "metricsConfig is null", Geyser then switches itself off). So the config starts from Floodgate's own template
+   * inside its jar (config.yml; on a proxy plus send-floodgate-data); a short config written by older versions of this
+   * extension is repaired the same way (its values are kept).
+   */
+  async ensureFloodgateConfig(id, proxy = false) {
+    const f = path.join(this.floodgateDir(id), 'config.yml');
+    const now = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
+    if (/^metrics:/m.test(now)) return false;
+    const tpl = await this.floodgateTemplate(id, proxy);
+    if (!tpl) return false;
+    let t = tpl;
+    const keep = { prefix: C.yamlGet(now, ['username-prefix']), replaceSpaces: C.yamlGet(now, ['replace-spaces']), proxy: proxy ? true : undefined, globalLinking: C.yamlGet(now, ['player-link', 'enable-global-linking']) };
+    t = C.floodgateText(t, Object.fromEntries(Object.entries(keep).filter(([, v]) => v !== undefined)));
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, t);
+    return true;
+  }
+  /** Floodgate's default config from its jar (null when there is no jar or it cannot be read). */
+  async floodgateTemplate(id, proxy) {
+    const dir = this.mc.addonDir(id);
+    let jar = null;
+    try { jar = fs.readdirSync(dir).find((x) => /^floodgate[-_].*\.jar$/i.test(x)); } catch { /* no folder */ }
+    if (!jar || typeof this.net.extractZip !== 'function') return null;
+    const tmp = path.join(os.tmpdir(), `hw-floodgate-${crypto.randomBytes(4).toString('hex')}`);
+    try {
+      await this.net.extractZip(path.join(dir, jar), tmp);
+      const main = fs.readFileSync(path.join(tmp, 'config.yml'), 'utf8');
+      if (!/^metrics:/m.test(main)) return null;
+      // The template has placeholders Floodgate fills itself on a fresh start (${metrics.uuid}); proxy-config.yml is a
+      // patch in Floodgate's own format (">> config.yml") – its one setting (send-floodgate-data) comes from floodgateText.
+      void proxy;
+      return main.replace(/\$\{metrics\.uuid\}/g, crypto.randomUUID()).replace(/^.*\$\{[^}]+\}.*\r?\n/gm, '').replace(/\n*$/, '\n');
+    } catch { return null; } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  }
   writeFloodgate(id, o) {
     const f = path.join(this.floodgateDir(id), 'config.yml');
     fs.mkdirSync(path.dirname(f), { recursive: true });
@@ -221,6 +264,7 @@ class Bedrock {
 
   status(id) {
     const s = this.mc.get(id);
+    if (s.geyser && s.geyser.mode === 'standalone' && this.standalone) return this.standalone.status(id);
     const sup = this.supported(s);
     const g = s.geyser || null;
     const p = this.mc.proc(id);
@@ -228,7 +272,7 @@ class Bedrock {
     const players = (p.extra && p.extra.players) || [];
     const out = {
       id, name: s.name, type: s.type, proxy: this.isProxy(s), behind: s.network && s.network.proxy ? s.network.proxy : null,
-      supported: sup.ok, why: sup.why || null, enabled: !!g, port: g ? g.port : null, floodgate: !!(g && g.floodgate),
+      supported: sup.ok, why: sup.why || null, standalonePossible: !!sup.standalone, enabled: !!g, port: g ? g.port : null, floodgate: !!(g && g.floodgate),
       mode: g ? (g.mode || (this.isProxy(s) ? 'proxy' : 'server')) : null, running: p.isRunning(), settings: g ? { ...this.defaults(), ...(g.settings || {}) } : null,
       build: g && g.builds ? g.builds.geyser || null : null, floodgateBuild: g && g.builds ? g.builds.floodgate || null : null,
       pending: g && g.pending ? g.pending : null, held: g && g.held ? g.held : null, failed: g && g.failed ? g.failed : null,
@@ -243,6 +287,8 @@ class Bedrock {
   }
   defaults() { return { prefix: '.', authType: 'floodgate', motd1: '', motd2: '', serverName: '', passthrough: true, maxPlayers: 100, showCoordinates: true, xboxAchievements: false, replaceSpaces: true, globalLinking: true }; }
   list() { return this.mc.list().filter((s) => s.geyser).map((s) => this.status(s.id)); }
+  /** Geyser as a plugin/mod (everything below) – Geyser Standalone has its own way (standalone.js). */
+  plugin(s) { return !!(s && s.geyser && s.geyser.mode !== 'standalone'); }
 
   /* ---------------- Switching on ---------------- */
 
@@ -278,6 +324,7 @@ class Bedrock {
         delete s.geyser.pending; delete s.geyserOff;
         if (fg) {
           this.ensureKey(id);
+          await this.ensureFloodgateConfig(id, this.isProxy(s));
           this.writeFloodgate(id, { prefix: wanted.prefix, replaceSpaces: wanted.replaceSpaces, globalLinking: wanted.globalLinking, ...(this.isProxy(s) ? { proxy: true } : {}) });
           if (this.isProxy(s)) {
             job.progress(60, t('Floodgate and the key on the servers behind the proxy …'));
@@ -350,6 +397,7 @@ class Bedrock {
       fs.mkdirSync(this.floodgateDir(b.id), { recursive: true });
       const had = this.hasKey(b.id, key);
       fs.writeFileSync(this.keyFile(b.id), key);
+      await this.ensureFloodgateConfig(b.id, false);
       this.writeFloodgate(b.id, { prefix: set.prefix || '.', replaceSpaces: set.replaceSpaces !== false });
       out.push({ id: b.id, name: b.name, ok: true, changed: !had, restart: !had && this.mc.proc(b.id).isRunning() });
     }
@@ -379,7 +427,7 @@ class Bedrock {
     const { t } = this;
     const s = this.mc.get(id);
     const g = s.geyser;
-    if (!g) return null;
+    if (!g || !this.plugin(s)) return null;
     const sup = this.supported(s);
     if (!sup.ok) return null;
     const want = { geyser: await this.latest('geyser', sup.geyser) };
@@ -435,6 +483,7 @@ class Bedrock {
    */
   applyStaged(id, log) {
     let s; try { s = this.mc.get(id); } catch { return false; }
+    if (s.geyser && !this.plugin(s)) return false;
     if (s.geyser && s.geyser.restartNeeded) { delete s.geyser.restartNeeded; this.save(); }
     if (s.geyserOff) { delete s.geyserOff; this.save(); }
     const dir = this.mc.addonDir(id);
@@ -468,7 +517,7 @@ class Bedrock {
   async probeTick(now = Date.now()) {
     for (const s of this.mc.list()) {
       const g = s.geyser;
-      if (!g || !g.probe) continue;
+      if (!g || !g.probe || !this.plugin(s)) continue;
       const p = this.mc.proc(s.id);
       const ready = p.isRunning() && p.extra && p.extra.ready;
       if (ready && !g.probe.readyAt) { g.probe.readyAt = now; this.save(); }
@@ -518,7 +567,7 @@ class Bedrock {
   async applyWhenEmpty() {
     for (const s of this.mc.list()) {
       const g = s.geyser;
-      if (!g || !(g.pending || g.restartNeeded)) continue;
+      if (!g || !this.plugin(s) || !(g.pending || g.restartNeeded)) continue;
       const p = this.mc.proc(s.id);
       if (!p.isRunning() || !p.extra.ready || this.playersOn(s.id) > 0) continue;
       if (this.isProxy(s)) for (const bid of g.backends || []) { try { if (fs.existsSync(path.join(this.mc.addonDir(bid), STAGE)) && this.mc.proc(bid).isRunning()) await this.mc.restart(bid); } catch { /* next round */ } }
@@ -528,7 +577,7 @@ class Bedrock {
   }
   async checkAll() {
     for (const s of this.mc.list()) {
-      if (!s.geyser) continue;
+      if (!this.plugin(s)) continue;
       try { await this.checkUpdate(s.id); } catch (e) { this.note(`mc-network-geyser-${s.id}`, { ok: false, label: `Geyser (${s.name})`, text: this.t('Update check failed: {msg}', { msg: e.message }) }); }
     }
   }
