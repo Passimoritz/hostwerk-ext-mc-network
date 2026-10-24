@@ -1,3 +1,7 @@
+## 1.4.0
+
+- Needs the extension “Minecraft servers” (Hostwerk 3.1 moved Minecraft out of the core) – Hostwerk installs it along with this one. / Braucht die Erweiterung „Minecraft-Server“ (Hostwerk 3.1 hat Minecraft aus dem Kern ausgelagert) – Hostwerk installiert sie mit.
+
 ## 1.3.1
 
 - German text: “Geyser-Konfiguration” instead of the short “Konfig”. / Deutscher Text: „Geyser-Konfiguration“ statt der Kurzform „Konfig“.
