@@ -9,7 +9,7 @@
     "de": "Mehrere Minecraft-Server hinter einer Adresse und Java mit Bedrock zusammen: Velocity oder BungeeCord als Proxy, Lobby, direkte Adressen, Wartung je Server, gemeinsame Whitelist/OPs/Bans, Geyser + Floodgate einmal am Proxy, Geyser Standalone vor Vanilla/Forge, Bedrock Dedicated Server, ViaVersion & Co. – alles hält sich selbst aktuell, mit Rücksprung bei Fehlern.",
     "en": "Several Minecraft servers behind one address and Java together with Bedrock: Velocity or BungeeCord as the proxy, lobby, direct addresses, maintenance per server, shared whitelist/ops/bans, Geyser + Floodgate once on the proxy, Geyser Standalone in front of Vanilla/Forge, Bedrock Dedicated Server, ViaVersion & co. – everything keeps itself up to date, with a way back on errors."
   },
-  "version": "1.4.0",
+  "version": "1.4.1",
   "author": "Hostwerk",
   "homepage": "https://github.com/Passimoritz/hostwerk-ext-mc-network",
   "license": "MIT",

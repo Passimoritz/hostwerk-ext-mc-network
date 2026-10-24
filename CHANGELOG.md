@@ -1,3 +1,7 @@
+## 1.4.1
+
+- New animated icon and banner in the common Hostwerk style (isometric block). / Neues animiertes Symbol und Banner im gemeinsamen Hostwerk-Stil (isometrischer Block).
+
 ## 1.4.0
 
 - Needs the extension “Minecraft servers” (Hostwerk 3.1 moved Minecraft out of the core) – Hostwerk installs it along with this one. / Braucht die Erweiterung „Minecraft-Server“ (Hostwerk 3.1 hat Minecraft aus dem Kern ausgelagert) – Hostwerk installiert sie mit.
