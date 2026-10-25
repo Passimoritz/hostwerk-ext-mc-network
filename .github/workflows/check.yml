@@ -57,7 +57,8 @@ jobs:
           VER=$(node -p "require('./manifest.json').version")
           # Everything that belongs to the package (pages, widget, server/, ui/, locales/, lang/, data/, docs/ …) –
           # only the repository tooling stays out (Git, workflows, tests, interface source, installed build tools)
-          zip -r -X "$ID-$VER.zip" . -x ".git/*" ".github/*" "tests/*" "ui/src/*" "node_modules/*" "*.zip" "*.sha256" ".gitignore" "*.DS_Store" "docs/*.md"
+          # Only files of the repository (git ls-files) – leftovers of the test run never end up in the package
+          git ls-files -z | grep -zvE '^(\.github/|\.gitignore$|\.gitattributes$|tests/|tools/|scripts/|ui/src/|node_modules/|package(-lock)?\.json$|docs/.*\.md$|.*\.todo\.json$)' | xargs -0 zip -X "$ID-$VER.zip"
           sha256sum "$ID-$VER.zip" | cut -d' ' -f1 > "$ID-$VER.zip.sha256"
           echo "Package: $ID-$VER.zip ($(cat "$ID-$VER.zip.sha256"))"
       - name: Publish release
