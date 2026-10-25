@@ -72,6 +72,12 @@ function activate(host) {
     }
   })().catch(() => {});
 
+  // Selbstwartung (SDK 3.5): Geyser/Floodgate-Updates prüfen und als Bereich zeigen – bis Hostwerk 3.1 im Kern
+  if (typeof host.contribute === 'function') host.contribute('keeper', {
+    checks: [{ label: 'Geyser/Bedrock', run: () => bedrock.checkAll() }],
+    areas: [{ id: 'geyser', label: 'Geyser/Floodgate', auto: true, url: '#/mc', every: 24 * 3600000, text: 'Auto-Update mit Probelauf.', detail: ['Geyser und Floodgate (Bedrock-Spieler) werden automatisch aktualisiert und getestet.', 'Nichts.'] }],
+  });
+
   let migration = { misplaced: [] };
   try { migration = M.migrate(ctx, mc, bedrock, networks); } catch (e) { host.log('migration:', e.message); }
 

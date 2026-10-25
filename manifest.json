@@ -80,5 +80,10 @@
         "en": "Start the Minecraft network and other game servers together"
       }
     }
-  ]
+  ],
+  "data": {
+    "settings": [
+      "mcNetwork"
+    ]
+  }
 }
