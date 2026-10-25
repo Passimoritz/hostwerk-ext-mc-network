@@ -4,7 +4,9 @@
 
 Mehrere Minecraft-Server hinter einer Adresse, Java- und Bedrock-Spieler zusammen – sicher eingerichtet und hält sich selbst aktuell.
 
-[English](README.md) · Offizielle [Hostwerk](https://github.com/Passimoritz/hostwerk-public)-Erweiterung (native Erweiterung, SDK 3.0; BungeeCord braucht Hostwerk 3.2)
+[English](README.md) · Offizielle [Hostwerk](https://github.com/Passimoritz/hostwerk-public)-Erweiterung (native Erweiterung, ab Hostwerk 3.1; BungeeCord braucht Hostwerk 3.2)
+
+![Bildschirmfoto](docs/screenshot.de.png)
 
 Löst die Erweiterung **Bedrock-Brücke** und den Minecraft-Teil von **Spiele-Server-Verbund** ab (der bleibt für Spiele-Server allgemein).
 
@@ -22,7 +24,7 @@ Löst die Erweiterung **Bedrock-Brücke** und den Minecraft-Teil von **Spiele-Se
 | **Geyser Standalone** | Geyser als eigenes Programm vor einem Java-Server, der es nicht laden kann (Vanilla, Forge, eigene JARs). Ohne Floodgate brauchen Bedrock-Spieler ein Java-Konto (einmal anmelden). | Neben dem Server (`geyser-standalone/` in seinem Ordner), startet und stoppt mit ihm. |
 | **Bedrock Dedicated Server** | Mojangs eigener Server für die Bedrock Edition: eigene Bedrock-Welt, nur Bedrock-Spieler, Add-ons und Redstone genau wie in Bedrock. Keine Java-Spieler. | Seit Hostwerk 3.x ein Servertyp des Kerns (Minecraft-Bereich: Konsole, Einstellungen, Welten, Sicherungen, Erlaubnisliste); bei älterem Hostwerk eigenes Programm auf dieser Seite. |
 
-## Was es kann
+## Was sie kann
 
 - **Netzwerke**: Velocity (empfohlen, „modern forwarding“ mit Geheimnis) oder BungeeCord (für Plugins, die es nur dafür gibt); neuer oder vorhandener Proxy, auf Wunsch mit Lobby (flach, Abenteuer, friedlich)
 - **Server**: Reihenfolge (Lobby zuerst, dann die Ausweich-Reihenfolge), Name im Netzwerk, direkte Adressen je Server (forced hosts, z. B. `survival.example.org`), Wartung je Server (raus aus der Weiterleitung, Spieler in die Lobby, auf Wunsch Server stoppen)

@@ -4,7 +4,9 @@
 
 Several Minecraft servers behind one address, Java and Bedrock players together – set up safely and kept up to date by itself.
 
-[Deutsch](README.de.md) · An official [Hostwerk](https://github.com/Passimoritz/hostwerk-public) extension (native extension, SDK 3.0; BungeeCord needs Hostwerk 3.2)
+[Deutsch](README.de.md) · An official [Hostwerk](https://github.com/Passimoritz/hostwerk-public) extension (native extension, Hostwerk 3.1 or newer; BungeeCord needs Hostwerk 3.2)
+
+![Screenshot](docs/screenshot.png)
 
 Replaces the extension **Bedrock bridge** and the Minecraft part of **Game server network** (which stays for game servers in general).
 
