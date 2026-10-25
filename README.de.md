@@ -45,7 +45,7 @@ Löst die Erweiterung **Bedrock-Brücke** und den Minecraft-Teil von **Spiele-Se
 
 ## Umzug aus der „Bedrock-Brücke“
 
-Kopiert wird nichts – die Daten bleiben, wo sie waren (`settings.minecraft.servers[].geyser`, `plugins/floodgate/key.pem`). Beim ersten Start liest die Erweiterung die echten Geyser-/Floodgate-Einstellungen, übernimmt vorhandene Velocity-Netzwerke und zeigt Geyser-Installationen hinter einem Proxy: **„Auf den Proxy umziehen“** legt Geyser mit **demselben UDP-Port** (Freunde behalten ihre Adresse) und **demselben Floodgate-Schlüssel** auf den Proxy. Hostwerk 3.2 installiert diese Erweiterung von selbst für alle, die die Brücke genutzt haben.
+Kopiert wird nichts – die Daten bleiben, wo sie waren (`settings.minecraft.servers[].geyser`, `plugins/floodgate/key.pem`). Beim ersten Start liest die Erweiterung die echten Geyser-/Floodgate-Einstellungen, übernimmt vorhandene Velocity-Netzwerke und zeigt Geyser-Installationen hinter einem Proxy: **„Auf den Proxy umziehen“** legt Geyser mit **demselben UDP-Port** (Freunde behalten ihre Adresse) und **demselben Floodgate-Schlüssel** auf den Proxy. Hostwerk installiert diese Erweiterung von selbst für alle, die die Brücke genutzt haben, und entfernt die Brücke danach (seit 1.5.0, `"replaces": ["bedrock-bridge"]`).
 
 ## Installieren
 

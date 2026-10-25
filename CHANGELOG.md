@@ -1,3 +1,9 @@
+# Changelog
+
+## 1.5.0
+
+- Takes over the old "Bedrock bridge" extension (SDK 3.8 `replaces`): Hostwerk removes it after the move, and anyone who still has only the bridge gets this extension automatically. / Löst die alte Erweiterung „Bedrock-Brücke“ ab (SDK 3.8 `replaces`): Hostwerk entfernt sie nach dem Umzug, und wer nur noch die Brücke hat, bekommt diese Erweiterung automatisch.
+
 ## 1.4.1
 
 - New animated icon and banner in the common Hostwerk style (isometric block). / Neues animiertes Symbol und Banner im gemeinsamen Hostwerk-Stil (isometrischer Block).

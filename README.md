@@ -45,7 +45,7 @@ Replaces the extension **Bedrock bridge** and the Minecraft part of **Game serve
 
 ## Moving over from “Bedrock bridge”
 
-Nothing is copied – the data stays where it was (`settings.minecraft.servers[].geyser`, `plugins/floodgate/key.pem`). On its first start this extension reads the real Geyser/Floodgate settings, takes over existing Velocity networks and lists Geyser installations behind a proxy: **“Move to the proxy”** puts Geyser on the proxy with the **same UDP port** (friends keep their address) and the **same Floodgate key**. Hostwerk 3.2 installs this extension by itself for everybody who used the bridge.
+Nothing is copied – the data stays where it was (`settings.minecraft.servers[].geyser`, `plugins/floodgate/key.pem`). On its first start this extension reads the real Geyser/Floodgate settings, takes over existing Velocity networks and lists Geyser installations behind a proxy: **“Move to the proxy”** puts Geyser on the proxy with the **same UDP port** (friends keep their address) and the **same Floodgate key**. Hostwerk installs this extension by itself for everybody who used the bridge and removes the bridge afterwards (since 1.5.0, `"replaces": ["bedrock-bridge"]`).
 
 ## Install
 
