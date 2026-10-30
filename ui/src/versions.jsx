@@ -62,7 +62,7 @@ export function Versions({ n, data, reload }) {
     <div className="grid grid-2 mcn-grid">
       <div className="card mcn-span">
         <div className="card-head"><Layers size={16} aria-hidden="true" /><h3>Versions</h3>
-          <InfoTip title={t('Without maintenance')}>New builds come from the official sources (PaperMC, SpigotMC, GeyserMC, Modrinth, Mojang) with checksums. Hostwerk puts them in when nobody is online, checks that the server answers afterwards and goes back to the previous version if not. Everything is listed in Settings → Self-maintenance.</InfoTip>
+          <InfoTip title={t('Without maintenance')}>New builds come from the official sources (PaperMC, SpigotMC, GeyserMC, Modrinth, Mojang) with checksums. Hostwerk puts them in when nobody is online, checks that the server answers afterwards and goes back to the previous version if not. Everything is listed in System → Maintenance → Self-maintenance.</InfoTip>
           <div className="right"><Btn className="xs ghost" icon={RefreshCw} onClick={() => latest.reload()}>Check now</Btn></div>
         </div>
         <div className="card-body">

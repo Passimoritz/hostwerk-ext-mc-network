@@ -237,7 +237,7 @@
   "New Bedrock Dedicated Server": "Neuer Bedrock Dedicated Server",
   "New Bedrock server": "Neuer Bedrock-Server",
   "New build downloaded: {list}.": "Neuer Build geladen: {list}.",
-  "New builds come from the official sources (PaperMC, SpigotMC, GeyserMC, Modrinth, Mojang) with checksums. Hostwerk puts them in when nobody is online, checks that the server answers afterwards and goes back to the previous version if not. Everything is listed in Settings → Self-maintenance.": "Neue Builds kommen aus den offiziellen Quellen (PaperMC, SpigotMC, GeyserMC, Modrinth, Mojang) mit Prüfsumme. Hostwerk spielt sie ein, wenn niemand online ist, prüft danach, ob der Server antwortet, und geht sonst auf die vorige Version zurück. Alles steht unter Einstellungen → Selbstwartung.",
+  "New builds come from the official sources (PaperMC, SpigotMC, GeyserMC, Modrinth, Mojang) with checksums. Hostwerk puts them in when nobody is online, checks that the server answers afterwards and goes back to the previous version if not. Everything is listed in System → Maintenance → Self-maintenance.": "Neue Builds kommen aus den offiziellen Quellen (PaperMC, SpigotMC, GeyserMC, Modrinth, Mojang) mit Prüfsumme. Hostwerk spielt sie ein, wenn niemand online ist, prüft danach, ob der Server antwortet, und geht sonst auf die vorige Version zurück. Alles steht unter System → Wartung → Selbstwartung.",
   "New builds of the proxy as soon as nobody is online – with a way back.": "Neue Builds des Proxys, sobald niemand online ist – mit Rückweg.",
   "New network": "Neues Netzwerk",
   "New players are": "Neue Spieler sind",
