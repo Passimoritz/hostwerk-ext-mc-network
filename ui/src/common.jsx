@@ -18,7 +18,7 @@ export async function runJob(path, body, ok) {
 
 export function CopyBtn({ text, label }) {
   const [done, setDone] = useState(false);
-  const copy = () => navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }, () => toast.error('Could not copy'));
+  const copy = () => navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }, () => toast.error(t('Could not copy')));
   return <button type="button" className="btn ghost xs icon" title={label} aria-label={label} onClick={copy}>{done ? <Check /> : <Copy />}</button>;
 }
 

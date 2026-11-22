@@ -69,7 +69,7 @@ export function Versions({ n, data, reload }) {
           {rows.length === 0 ? <span className="small muted">Nothing to keep up to date yet.</span> : (
             <table className="table mcn-table">
               <thead><tr><th scope="col">{t('Part')}</th><th scope="col">{t('Installed')}</th><th scope="col">{t('Newest')}</th><th scope="col">{t('Note')}</th></tr></thead>
-              <tbody>{rows.map((r) => <tr key={r.name}><td>{r.name}</td><td className="mono">{r.have}</td><td className="mono">{r.latest}</td><td className="small muted">{r.note || ''}</td></tr>)}</tbody>
+              <tbody>{rows.map((r, i) => <tr key={i}><td>{r.name}</td><td className="mono">{r.have}</td><td className="mono">{r.latest}</td><td className="small muted">{r.note || ''}</td></tr>)}</tbody>
             </table>
           )}
         </div>

@@ -11,17 +11,22 @@ import { t } from '@hostwerk/i18n';
  */
 const keyOf = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'server';
 
-export function Servers({ n, free, reload }) {
+export function Servers({ n, free, reload, onDirty }) {
   const fromNet = () => n.members.map((m) => ({ id: m.id, name: m.name, type: m.type, version: m.version, key: m.key, hosts: (m.forced || []).join(', '), maintenance: m.maintenance }));
   const [rows, setRows] = useState(fromNet);
   const [busy, setBusy] = useState(false);
   useEffect(() => { setRows(fromNet()); }, [n.id, n.members.map((m) => `${m.id}:${m.key}:${m.maintenance}`).join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const fits = (s) => (n.kind === 'bungeecord' ? s.bungee : s.velocity);
-  const addable = free.filter((s) => !rows.some((r) => r.id === s.id) && fits(s));
+  // Members removed here but not saved yet are offered again (they are not in “free” until the network is saved)
+  const back = n.members.filter((m) => !m.missing && !rows.some((r) => r.id === m.id));
+  const addable = [...back, ...free.filter((s) => !rows.some((r) => r.id === s.id) && fits(s))];
   const set = (i, patch) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const move = (i, d) => { const j = i + d; if (j < 0 || j >= rows.length) return; const l = rows.slice(); [l[i], l[j]] = [l[j], l[i]]; setRows(l); };
   const dirty = JSON.stringify(rows.map((r) => [r.id, r.key, r.hosts])) !== JSON.stringify(fromNet().map((r) => [r.id, r.key, r.hosts]));
   const dupe = rows.find((r, i) => rows.findIndex((x) => x.key === r.key) !== i);
+  // The page asks before switching tab or network while something here is not saved yet
+  useEffect(() => { if (onDirty) onDirty(dirty); }, [dirty]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { if (onDirty) onDirty(false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     if (!rows.length && !(await confirmDialog({ title: t('Remove every server?'), text: t('The servers become reachable directly again. The proxy stays.'), confirm: t('Remove all') }))) return;
@@ -66,7 +71,7 @@ export function Servers({ n, free, reload }) {
               <li key={r.id} className="mcn-row" onContextMenu={(e) => menu(e, r, i)}>
                 <span className="mcn-pos" aria-hidden="true">{i + 1}</span>
                 <div className="mcn-row-name">
-                  <b className="ellipsis">{r.name}</b>
+                  <b className="ellipsis" title={r.name}>{r.name}</b>
                   <span className="tiny muted">{[i === 0 ? t('lobby') : null, r.type, r.version].filter(Boolean).join(' · ')}</span>
                 </div>
                 <label className="mcn-field"><span className="tiny muted">Name in the network</span><input className="input sm" value={r.key} onChange={(e) => set(i, { key: keyOf(e.target.value) })} /></label>
@@ -83,7 +88,7 @@ export function Servers({ n, free, reload }) {
         )}
         <div className="card-body row-tight mcn-wrap">
           {addable.length > 0 && (
-            <select className="input sm mcn-add" aria-label={t('Add a server')} value="" onChange={(e) => { const s = free.find((x) => x.id === e.target.value); if (s) setRows([...rows, { id: s.id, name: s.name, type: s.type, version: s.version, key: keyOf(s.name), hosts: '', maintenance: false }]); }}>
+            <select className="input sm mcn-add" aria-label={t('Add a server')} value="" onChange={(e) => { const s = addable.find((x) => x.id === e.target.value); if (s) setRows([...rows, { id: s.id, name: s.name, type: s.type, version: s.version, key: keyOf(s.name), hosts: '', maintenance: false }]); }}>
               <option value="">{t('Add a server …')}</option>
               {addable.map((s) => <option key={s.id} value={s.id}>{`${s.name} (${s.type} ${s.version || ''})`}</option>)}
             </select>

@@ -121,6 +121,7 @@ function activate(host) {
   r.post('/mc-network/net/:id/maintenance', async (req, res) => { const b = B(req); const v = await networks.maintenance(req.params.id, String(b.server || ''), !!b.on, { stop: !!b.stop }); changed(); res.json(v); });
   r.post('/mc-network/net/:id/send', async (req, res) => res.json(await networks.send(req.params.id, B(req))));
   r.put('/mc-network/net/:id/icon', async (req, res) => { const d = String(B(req).data || '').replace(/^data:image\/png;base64,/, ''); res.json(await networks.setIcon(req.params.id, Buffer.from(d, 'base64'))); });
+  r.delete('/mc-network/net/:id/icon', (req, res) => res.json(networks.removeIcon(req.params.id)));
   r.get('/mc-network/net/:id/icon', (req, res) => { const f = networks.icon(req.params.id); if (!f) return res.status(404).end(); res.type('png').sendFile(f); });
   r.put('/mc-network/net/:id/whitelist', async (req, res) => res.json(await networks.setWhitelist(req.params.id, !!B(req).on)));
   r.post('/mc-network/net/:id/lists/:which', async (req, res) => res.json(await networks.listAdd(req.params.id, req.params.which, B(req).name, B(req))));

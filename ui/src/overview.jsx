@@ -9,13 +9,13 @@ import { CheckList, CopyBtn, runJob } from './common';
  * Overview of one network: the picture (Bedrock/Java → proxy → servers), what friends type in, whether everything is set up
  * safely, and starting/stopping in the right order.
  */
-const pill = (x) => (x.missing ? 'error' : x.running ? (x.ready === false ? 'starting' : 'running') : 'stopped');
+const pill = (x) => (x.missing ? 'error' : x.procState === 'stopping' ? 'stopping' : x.running ? (x.ready === false ? 'starting' : 'running') : x.procState === 'error' ? 'error' : 'stopped');
 
 function Node({ icon: Icon, title, sub, state, extra, href }) {
   const body = (
     <>
       <span className="mcn-node-ico" aria-hidden="true"><Icon size={16} /></span>
-      <span className="mcn-node-txt"><b className="ellipsis">{title}</b>{sub && <span className="tiny muted ellipsis">{sub}</span>}</span>
+      <span className="mcn-node-txt"><b className="ellipsis" title={title}>{title}</b>{sub && <span className="tiny muted ellipsis" title={sub}>{sub}</span>}</span>
       {state && <StatusPill state={state} />}
       {extra}
     </>

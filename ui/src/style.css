@@ -12,10 +12,13 @@
 .mcn-topo-row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-3); list-style: none; margin: 0; padding: 0; width: 100%; }
 .mcn-topo-servers > li { min-width: 0; }
 .mcn-topo-link { width: 2px; height: var(--sp-5); background: var(--line-2, var(--line)); }
-.mcn-node { display: flex; align-items: center; gap: var(--sp-2); min-width: calc(var(--sp-8) * 5); max-width: calc(var(--sp-8) * 8); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2, var(--surface)); color: inherit; text-decoration: none; min-height: calc(var(--sp-8) + var(--sp-2)); }
+.mcn-node { display: flex; align-items: center; gap: var(--sp-2); min-width: calc(var(--sp-8) * 5); max-width: calc(var(--sp-8) * 11); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2, var(--surface)); color: inherit; text-decoration: none; min-height: calc(var(--sp-8) + var(--sp-2)); }
 a.mcn-node:hover { border-color: var(--accent); }
+/* Servers sit in an <ol>: Hostwerk underlines links in lists (li a) – the boxes are not text links */
+.mcn-topo a.mcn-node, .mcn-topo a.mcn-node:hover { text-decoration: none; }
 a.mcn-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mcn-node-ico { display: inline-flex; align-items: center; justify-content: center; width: var(--sp-6); height: var(--sp-6); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-text, var(--accent)); flex: none; }
+.mcn-node > .pill { flex: none; }
 .mcn-node-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 
 /* Addresses */
@@ -54,7 +57,7 @@ a.mcn-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px
 .mcn-table { width: 100%; }
 .mcn-icon { width: calc(var(--sp-8) * 1.5); height: calc(var(--sp-8) * 1.5); border-radius: var(--r-md); border: 1px solid var(--line); image-rendering: pixelated; }
 .mcn-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
-label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.btn.mcn-file-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* New network: server picker */
 .mcn-pick { display: flex; flex-direction: column; gap: var(--sp-1); max-height: calc(var(--sp-8) * 9); overflow: auto; }

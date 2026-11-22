@@ -44,6 +44,8 @@ class McNetworks {
   byProxy(proxyId) { return this.list().find((x) => x.proxy === proxyId) || null; }
   srv(id) { try { return this.mc.get(id); } catch { return null; } }
   running(id) { try { return this.mc.proc(id).isRunning(); } catch { return false; } }
+  /** Process state of Hostwerk (running, starting, stopping, stopped, error) – null when unknown */
+  procState(id) { try { return this.mc.proc(id).state || null; } catch { return null; } }
   ready(id) { try { const p = this.mc.proc(id); return p.isRunning() && (!p.extra || p.extra.ready === undefined || !!p.extra.ready); } catch { return false; } }
   players(id) { try { const e = this.mc.proc(id).extra || {}; return (e.players || []).map((x) => (typeof x === 'string' ? x : x && x.name)).filter(Boolean); } catch { return []; } }
   dir(id) { return this.mc.dir(id); }
@@ -55,18 +57,19 @@ class McNetworks {
     const members = (n.members || []).map((m, i) => {
       const s = this.srv(m.id);
       if (!s) return { id: m.id, key: m.key, missing: true, name: m.id };
-      return { id: s.id, key: m.key, name: s.name, type: s.type, version: s.version, port: s.port, running: this.running(s.id), ready: this.ready(s.id), players: this.players(s.id), lobby: i === 0, maintenance: (n.maintenance || []).includes(s.id), forced: Object.entries(n.forced || {}).filter(([, k]) => k === m.key).map(([h]) => h) };
+      return { id: s.id, key: m.key, name: s.name, type: s.type, version: s.version, port: s.port, running: this.running(s.id), ready: this.ready(s.id), procState: this.procState(s.id), players: this.players(s.id), lobby: i === 0, maintenance: (n.maintenance || []).includes(s.id), forced: Object.entries(n.forced || {}).filter(([, k]) => k === m.key).map(([h]) => h) };
     });
     const bedrock = proxy && proxy.geyser ? this.bedrock.status(proxy.id) : null;
     const pp = proxy ? this.players(proxy.id) : [];
     return {
       id: n.id, name: n.name, kind: n.kind, kindLabel: (KINDS[n.kind] || {}).label || n.kind,
-      proxy: proxy ? { id: proxy.id, name: proxy.name, type: proxy.type, version: proxy.version, build: proxy.build, port: proxy.port, running: this.running(proxy.id), ready: this.ready(proxy.id), players: pp } : { id: n.proxy, missing: true },
+      proxy: proxy ? { id: proxy.id, name: proxy.name, type: proxy.type, version: proxy.version, build: proxy.build, port: proxy.port, running: this.running(proxy.id), ready: this.ready(proxy.id), procState: this.procState(proxy.id), players: pp } : { id: n.proxy, missing: true },
       members, bedrock, settings: this.settingsOf(n), maintenance: n.maintenance || [], forced: n.forced || {},
       players: Math.max(pp.length, members.reduce((x, m) => x + (m.players ? m.players.length : 0), 0)),
       state: !proxy ? 'missing' : this.running(proxy.id) ? (members.every((m) => m.running || m.maintenance) ? 'running' : 'partial') : members.some((m) => m.running) ? 'partial' : 'stopped',
       lists: this.listsView(n), proxyUpdates: { auto: !(n.proxyUpdates && n.proxyUpdates.auto === false), failed: (n.proxyUpdates && n.proxyUpdates.failed) || null, pending: proxy && this.mc.updates && this.mc.updates.get ? ((this.mc.updates.get(proxy.id) || {}).server || null) : null },
       via: { auto: !(n.via && n.via.auto === false) },
+      icon: !!proxy && fs.existsSync(path.join(this.dir(proxy.id), 'server-icon.png')),
     };
   }
   settingsOf(n) { return { motd1: n.motd1 || '', motd2: n.motd2 || '', showMaxPlayers: n.showMaxPlayers ?? 100, pingPassthrough: n.pingPassthrough || 'DISABLED', kickExisting: n.kickExisting !== false }; }
@@ -86,9 +89,13 @@ class McNetworks {
    */
   create(b = {}) {
     const { t } = this;
+    // Wie in der Oberfläche: Name nötig, bekannte Art (fehlt sie, gilt Velocity), mindestens ein Server oder eine neue Lobby
+    if (b.kind != null && b.kind !== '' && !KINDS[b.kind]) throw this.host.error(400, this.t('Unknown proxy type “{kind}” – possible are {list}.', { kind: String(b.kind).slice(0, 40), list: Object.keys(KINDS).join(', ') }));
     const kind = KINDS[b.kind] ? b.kind : 'velocity';
-    const name = String(b.name || '').trim().slice(0, 60) || 'Network';
+    const name = String(b.name || '').trim().slice(0, 60);
+    if (!name) throw this.host.error(400, this.t('Please give the network a name.'));
     const ids = [...new Set((Array.isArray(b.members) ? b.members : []).map(String))];
+    if (!ids.length && !b.lobby) throw this.host.error(400, this.t('Choose at least one server or create a lobby.'));
     if (b.proxyId) { const p = this.srv(b.proxyId); if (!p || !this.mc.isProxy(p)) throw this.host.error(400, 'This is not a proxy.'); if (this.byProxy(p.id)) throw this.host.error(409, 'This proxy already has a network.'); }
     for (const id of ids) { const s = this.srv(id); if (!s) throw this.host.error(404, 'Server not found'); this.assertFits(kind, s); }
     return this.net.runJob(t('Set up network “{name}”', { name }), async (job) => {
@@ -107,6 +114,7 @@ class McNetworks {
       members.push(...ids.filter((x) => !members.includes(x)));
       const n = { id: crypto.randomBytes(4).toString('hex'), name, proxy: proxyId, kind, members: [], forced: {}, maintenance: [], createdAt: Date.now() };
       this.list().push(n);
+      this.cfg.dismissed = (this.cfg.dismissed || []).filter((x) => x !== proxyId);
       this.save();
       job.progress(40, t('Connecting the servers …'));
       await this.applyMembers(n, members.map((id) => ({ id, key: this.uniqueKey(n, this.srv(id).name) })), job);
@@ -149,6 +157,7 @@ class McNetworks {
       const order = tr.map((x) => x.slice(1, -1));
       members.sort((a, b) => (order.indexOf(a.key) + 1 || 99) - (order.indexOf(b.key) + 1 || 99));
     } catch { /* BungeeCord or never started */ }
+    this.cfg.dismissed = (this.cfg.dismissed || []).filter((x) => x !== proxyId);
     const n = { id: crypto.randomBytes(4).toString('hex'), name: String(name || p.name).slice(0, 60), proxy: proxyId, kind: p.type === 'bungeecord' ? 'bungeecord' : 'velocity', members, forced: {}, maintenance: [], createdAt: Date.now() };
     this.list().push(n);
     this.save();
@@ -158,7 +167,8 @@ class McNetworks {
   remove(id, { release = false } = {}) {
     const n = this.get(id);
     const done = () => { this.cfg.networks = this.list().filter((x) => x.id !== id); this.save(); return { ok: true }; };
-    if (!release) return done();
+    // Only off this page: remember the proxy, so the takeover at the next start (migrate.js) does not bring it back
+    if (!release) { this.cfg.dismissed = [...new Set([...(this.cfg.dismissed || []), n.proxy])]; return done(); }
     return this.net.runJob(this.t('Dissolve network “{name}”', { name: n.name }), async (job) => { await this.applyMembers(n, [], job); return done(); }, { key: `mc-network-remove-${id}` });
   }
   rename(id, name) { const n = this.get(id); n.name = String(name || '').trim().slice(0, 60) || n.name; this.save(); return this.view(n); }
@@ -297,6 +307,12 @@ class McNetworks {
     const sz = C.pngSize(buf);
     if (!sz.ok) throw this.host.error(400, sz.w ? this.t('The icon has to be 64 × 64 pixels (this one is {w} × {h}).', { w: sz.w, h: sz.h }) : this.t('Please choose a PNG image.'));
     fs.writeFileSync(path.join(this.dir(n.proxy), 'server-icon.png'), buf);
+    return { ok: true, restartNeeded: this.running(n.proxy) };
+  }
+  /** Back to the default icon: the proxy's server-icon.png is removed. */
+  removeIcon(id) {
+    const n = this.get(id);
+    fs.rmSync(path.join(this.dir(n.proxy), 'server-icon.png'), { force: true });
     return { ok: true, restartNeeded: this.running(n.proxy) };
   }
   icon(id) { const n = this.get(id); const f = path.join(this.dir(n.proxy), 'server-icon.png'); return fs.existsSync(f) ? f : null; }

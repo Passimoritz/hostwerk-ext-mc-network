@@ -44,6 +44,15 @@ test('Velocity network: proxy created, members through the core, lobby first, Va
   assert.throws(() => s.n.create({ name: 'Other', members: ['lobby'] }), /already in the network/);
 });
 
+test('create: empty name, no servers and unknown kind are refused (like the interface)', () => {
+  const s = setup();
+  assert.throws(() => s.n.create({ name: '  ', members: ['lobby'] }), (e) => e.status === 400 && /name/.test(e.message));
+  assert.throws(() => s.n.create({ name: 'Net', members: [] }), (e) => e.status === 400);
+  assert.throws(() => s.n.create({ name: 'Net' }), (e) => e.status === 400);
+  assert.throws(() => s.n.create({ name: 'Net', kind: 'waterfall', members: ['lobby'] }), (e) => e.status === 400 && /waterfall/.test(e.message));
+  assert.strictEqual(s.n.list().length, 0);
+});
+
 test('settings: forced hosts validated and written, MOTD/limit/ping passthrough, reload of a running proxy', async () => {
   const s = setup();
   const { id } = await s.n.create({ name: 'Net', members: ['lobby', 'survival'] }).promise;

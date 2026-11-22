@@ -15,19 +15,48 @@ const PING = [
   { id: 'ALL', label: 'Everything of the lobby' },
 ];
 
+/** Image file → data URL of a 64 × 64 PNG (square cut from the middle, smooth scaling). */
+function toIcon64(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      try {
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        if (!side) throw new Error('empty');
+        const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+        const g = c.getContext('2d');
+        g.imageSmoothingEnabled = side > 64; g.imageSmoothingQuality = 'high'; // pixel art stays sharp when enlarged
+        g.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 64, 64);
+        resolve(c.toDataURL('image/png'));
+      } catch (e) { reject(e); } finally { URL.revokeObjectURL(url); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable')); };
+    img.src = url;
+  });
+}
+
 export function Advanced({ n, reload, onRemoved }) {
   const [f, setF] = useState({ name: n.name, ...n.settings });
   const [busy, setBusy] = useState(false);
-  const [icon, setIcon] = useState(0);
+  const [icon, setIcon] = useState(0); // > 0 once an icon was saved here
   useEffect(() => { setF({ name: n.name, ...n.settings }); }, [n.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (e) => setF({ ...f, [k]: e && e.target ? e.target.value : e });
   const save = async () => { setBusy(true); try { await put(`/mc-network/net/${n.id}`, f); toast.success(t('Saved – a running proxy reloads it right away')); reload(); } catch (e) { toast.error(e.message); } setBusy(false); };
-  const upload = (e) => {
+  const [hasIcon, setHasIcon] = useState(!!n.icon);
+  useEffect(() => { setHasIcon(!!n.icon); }, [n.id, n.icon]);
+  const upload = async (e) => {
     const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // the same file again later still counts as a choice
     if (!file) return;
-    const r = new FileReader();
-    r.onload = async () => { try { const x = await put(`/mc-network/net/${n.id}/icon`, { data: r.result }); toast.success(x.restartNeeded ? t('Icon saved – shows after a restart of the proxy') : t('Icon saved')); setIcon(Date.now()); } catch (err) { toast.error(err.message); } };
-    r.readAsDataURL(file);
+    // Any size: scaled (and cropped to a square from the middle) to the 64 × 64 PNG Minecraft wants
+    let data;
+    try { data = await toIcon64(file); } catch { toast.error(t('This image could not be read.')); return; }
+    try { const x = await put(`/mc-network/net/${n.id}/icon`, { data }); toast.success(x.restartNeeded ? t('Icon saved – shows after a restart of the proxy') : t('Icon saved')); setIcon(Date.now()); setHasIcon(true); } catch (err) { toast.error(err.message); }
+  };
+  const removeIcon = async () => {
+    if (!(await confirmDialog({ title: t('Remove the icon?'), text: t('The server list shows the default icon again.'), confirm: t('Remove') }))) return;
+    try { const x = await del(`/mc-network/net/${n.id}/icon`); toast.success(x.restartNeeded ? t('Icon removed – the default icon shows after a restart of the proxy') : t('Icon removed')); setHasIcon(false); setIcon(0); } catch (err) { toast.error(err.message); }
   };
   const dissolve = async (release) => {
     const ok = await confirmDialog(release
@@ -46,8 +75,10 @@ export function Advanced({ n, reload, onRemoved }) {
           <Field label={t('Second line')}><input className="input sm" maxLength={120} value={f.motd2} onChange={set('motd2')} /></Field>
           <Field label={t('Players shown as maximum')}><input className="input sm" type="number" min={0} max={100000} value={f.showMaxPlayers} onChange={set('showMaxPlayers')} /></Field>
           <div className="row-tight mcn-wrap">
-            <img className="mcn-icon" alt={t('Server icon')} src={`${apiUrl(`/api/mc-network/net/${n.id}/icon`)}?v=${icon}`} onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} onLoad={(e) => { e.currentTarget.style.visibility = 'visible'; }} />
-            <label className="btn sm ghost"><Image size={14} aria-hidden="true" /> {t('Choose icon (64 × 64 PNG)')}<input type="file" accept="image/png" className="mcn-file" onChange={upload} /></label>
+            {hasIcon && <img className="mcn-icon" alt={t('Server icon')} src={`${apiUrl(`/api/mc-network/net/${n.id}/icon`)}?v=${icon}`} onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} onLoad={(e) => { e.currentTarget.style.visibility = 'visible'; }} />}
+            <label className="btn sm ghost mcn-file-btn"><Image size={14} aria-hidden="true" /> {t('Choose icon')}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="mcn-file" onChange={upload} /></label>
+            {hasIcon && <Btn className="sm ghost" icon={Trash2} onClick={removeIcon}>Remove icon</Btn>}
+            <span className="small muted">{t('Any image – Hostwerk scales it to 64 × 64 pixels.')}</span>
           </div>
         </div>
       </div>
@@ -59,7 +90,7 @@ export function Advanced({ n, reload, onRemoved }) {
           </Field>
           {n.kind === 'velocity' && <SettingRow title={t('Second login wins')} text={t('Logging in again from another place ends the first session (otherwise the second login is refused).')}><Switch checked={!!f.kickExisting} onChange={set('kickExisting')} /></SettingRow>}
           <div className="small muted">{t('Account check (online mode) stays on at the proxy; the servers behind it listen on 127.0.0.1 only.')} <InfoTip title={t('Why')}>The servers behind the proxy do not check accounts themselves – they trust the proxy. That is only safe when nobody can reach them directly. Hostwerk never opens their ports in the router or the firewall.</InfoTip></div>
-          <div className="row-tight"><Btn className="sm primary" busy={busy} onClick={save}>Save</Btn></div>
+          <div className="row-tight"><Btn className="sm primary" busy={busy} disabled={!String(f.name || '').trim()} onClick={save}>Save</Btn></div>
         </div>
       </div>
       <div className="card mcn-span">

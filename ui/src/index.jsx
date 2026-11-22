@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Network, LayoutDashboard, Server, Users, Smartphone, Layers, Settings2, Plus, RotateCcw, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useApi } from '@hostwerk/api';
-import { Btn, Empty, Field, InfoTip, Loading, Modal, Seg, Switch, SettingRow, Tabs, toast } from '@hostwerk/ui';
+import { Btn, Empty, Field, InfoTip, Loading, Modal, Seg, Switch, SettingRow, Tabs, toast, confirmDialog } from '@hostwerk/ui';
 import { t } from '@hostwerk/i18n';
 import { Overview } from './overview';
 import { Servers } from './servers';
@@ -30,7 +30,7 @@ function NewNetwork({ data, onClose, onDone }) {
     <Modal title={t('New network')} onClose={onClose} footer={<><Btn onClick={onClose}>Cancel</Btn><Btn className="primary" busy={busy} disabled={!f.name.trim() || (!f.members.length && !f.lobby)} onClick={create}>Create network</Btn></>}>
       <div className="stack">
         <Field label={t('Name')}><input className="input" value={f.name} maxLength={60} placeholder={t('e.g. Friends network')} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <Field label={t('Proxy')} hint={f.kind === 'velocity' ? t('Modern and secure: forwards players with a secret key. Takes Paper, Purpur, Folia, Fabric and NeoForge.') : t('For BungeeCord-only plugins. Forwards players without a secret – Hostwerk keeps the servers on 127.0.0.1 for that. Waterfall is discontinued and not offered.')}>
+        <Field label={t('Proxy')} hint={f.kind === 'velocity' ? t('Modern and secure: forwards players with a secret key. Takes Paper, Purpur, Folia, Fabric, NeoForge and Forge.') : t('For BungeeCord-only plugins. Forwards players without a secret – Hostwerk keeps the servers on 127.0.0.1 for that. Waterfall is discontinued and not offered.')}>
           <Seg value={f.kind} onChange={(kind) => setF({ ...f, kind, proxyId: '', members: [] })} options={kinds} />
         </Field>
         {proxies.length > 0 && (
@@ -72,8 +72,13 @@ const NEEDS_NET = ['overview', 'servers', 'players', 'advanced'];
 function NetworkPage() {
   const d = useApi('/mc-network', [], { live: true, poll: true });
   const [cur, setCur] = useState(() => { try { return localStorage.getItem('mcn-net') || null; } catch { return null; } });
-  const [tab, setTab] = useState('overview');
+  const [tab, setTabRaw] = useState('overview');
   const [creating, setCreating] = useState(false);
+  // Unsaved order/names/removals in the “Servers” tab would otherwise be lost silently on a switch
+  const dirty = useRef(false);
+  const leaveOk = async () => !dirty.current || !!(await confirmDialog({ title: t('Discard unsaved changes?'), text: t('The changes in the “Servers” tab (order, names, removed servers) are not saved yet.'), confirm: t('Discard'), danger: true }));
+  const setTab = async (v) => { if (v === tab || (await leaveOk())) { dirty.current = false; setTabRaw(v); } };
+  const pickNet = async (v) => { if (await leaveOk()) { dirty.current = false; setCur(v); } };
   useEffect(() => { try { if (cur) localStorage.setItem('mcn-net', cur); } catch { /* private mode */ } }, [cur]);
   if (!d.data) return <div className="page">{d.error ? <Empty icon={AlertTriangle} title={t('The network could not be loaded')} text={d.error} action={<Btn icon={RotateCcw} onClick={() => d.reload()}>Try again</Btn>} /> : <Loading />}</div>;
   const data = d.data;
@@ -94,19 +99,19 @@ function NetworkPage() {
           <Btn className="primary" icon={Plus} onClick={() => setCreating(true)}>New network</Btn>
         </div>
       </div>
-      {nothing ? (
+      {nothing && tab !== 'bedrock' ? (
         <Empty icon={Network} title={t('No network yet')} text={t('Put your servers behind one address (lobby, survival, minigames) – or let Bedrock players join a single server.')}
           action={<div className="row-tight mcn-wrap"><Btn className="primary" icon={Plus} onClick={() => setCreating(true)}>New network</Btn><Btn icon={Smartphone} onClick={() => setTab('bedrock')}>Bedrock only</Btn></div>} />
       ) : null}
       {!nothing || tab === 'bedrock' ? (
         <>
           {nets.length > 1 && (
-            <div className="mcn-pickbar"><Seg value={n.id} onChange={setCur} options={nets.map((x) => ({ id: x.id, label: x.name }))} /></div>
+            <div className="mcn-pickbar"><Seg value={n.id} onChange={pickNet} options={nets.map((x) => ({ id: x.id, label: x.name }))} /></div>
           )}
           <Tabs value={current} onChange={setTab} tabs={TABS.map((x) => ({ ...x, label: t(x.label), disabled: !n && NEEDS_NET.includes(x.id), title: !n && NEEDS_NET.includes(x.id) ? t('Create a network first') : undefined, badge: x.id === 'bedrock' && (data.misplaced || []).length ? data.misplaced.length : undefined }))} />
           <div className="mcn-tab">
             {current === 'overview' && n && <Overview n={n} reload={reload} />}
-            {current === 'servers' && n && <Servers n={n} free={data.free} reload={reload} />}
+            {current === 'servers' && n && <Servers key={n.id} n={n} free={data.free} reload={reload} onDirty={(v) => { dirty.current = v; }} />}
             {current === 'players' && n && <Players key={n.id} n={n} reload={reload} />}
             {current === 'bedrock' && <BedrockTab n={n} data={data} reload={reload} />}
             {current === 'versions' && <Versions n={n} data={data} reload={reload} />}

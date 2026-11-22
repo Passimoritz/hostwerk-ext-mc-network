@@ -79,3 +79,18 @@ test('a failed move leaves the old installation as it was', async () => {
   assert.strictEqual(servers[2].geyser.port, 19133);
   assert.ok(fs.existsSync(path.join(mc.addonDir('a'), 'Geyser-spigot.jar')));
 });
+
+test('a network removed only from this page is not taken over again at the next start – adopting it again does', () => {
+  const { mc } = bridgeState();
+  const host = makeHost({});
+  const b = new Bedrock(host, mc, makeNet(), { udpFree: async () => true });
+  const n = new McNetworks(host, mc, b, makeNet());
+  const [id] = M.migrate(host.ctx, mc, b, n).adopted;
+  n.remove(id);
+  assert.deepStrictEqual(M.migrate(host.ctx, mc, b, n).adopted, [], 'stays removed');
+  assert.ok(n.adopt('proxy').id, 'taking it over by hand still works');
+  assert.deepStrictEqual(host.ctx.settings.get().mcNetwork.dismissed, []);
+  const v = n.view(n.byProxy('proxy'));
+  assert.strictEqual(v.icon, false, 'no server-icon.png yet');
+  assert.ok('procState' in v.proxy);
+});

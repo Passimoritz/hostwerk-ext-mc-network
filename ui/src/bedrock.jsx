@@ -142,7 +142,7 @@ export function StandaloneCard({ st, reload }) {
   const [busy, setBusy] = useState(null);
   const [log, setLog] = useState(false);
   const run = async (action) => { setBusy(action); try { await post(`/mc-network/standalone/${st.id}/run/${action}`); reload(); } catch (e) { toast.error(e.message); } setBusy(null); };
-  const check = async () => { setBusy('check'); try { await post(`/mc-network/bedrock/${st.id}/update`); reload(); } catch (e) { toast.error(e.message); } setBusy(null); };
+  const check = async () => { setBusy('check'); try { await post(`/mc-network/bedrock/${st.id}/update`); toast.success(t('Checked for updates')); reload(); } catch (e) { toast.error(e.message); } setBusy(null); };
   const update = async () => { setBusy('update'); const r = await runJob(`/mc-network/standalone/${st.id}/update`, {}); setBusy(null); if (r) toast.success(r.upToDate ? t('Already up to date') : t('Geyser {b} runs', { b: r.build })); reload(); };
   const disable = async () => {
     if (!(await confirmDialog({ title: t('Switch off Geyser Standalone?'), text: t('Geyser stops and its folder is removed. The Java server stays as it is.'), confirm: t('Switch off'), danger: true }))) return;
@@ -241,7 +241,7 @@ function BdsCard({ b, reload, coreBds }) {
               <Field label={t('Max players')}><input className="input sm" type="number" min={1} max={200} value={f['max-players'] || 10} onChange={(e) => setF({ ...f, 'max-players': e.target.value })} /></Field>
               <Field label={t('New players are')}><select className="input sm" value={f['default-player-permission-level'] || 'member'} onChange={(e) => setF({ ...f, 'default-player-permission-level': e.target.value })}><option value="visitor">{t('Visitors')}</option><option value="member">{t('Members')}</option><option value="operator">{t('Operators')}</option></select></Field>
             </div>
-            <SettingRow title={t('Xbox login required')} text={t('Players must be signed in with a Microsoft account (recommended).')}><Switch checked={f['online-mode'] !== 'false'} onChange={(v) => setF({ ...f, 'online-mode': v })} /></SettingRow>
+            <SettingRow title={t('Xbox login required')} text={t('Players must be signed in with a Microsoft account (recommended).')}><Switch checked={f['online-mode'] !== 'false' && f['online-mode'] !== false} onChange={(v) => setF({ ...f, 'online-mode': v })} /></SettingRow>
             <SettingRow title={t('Allow list')} text={t('Only players on allowlist.json may join.')}><Switch checked={f['allow-list'] === 'true' || f['allow-list'] === true} onChange={(v) => setF({ ...f, 'allow-list': v })} /></SettingRow>
             <SettingRow title={t('Cheats')} text={t('Commands for operators.')}><Switch checked={f['allow-cheats'] === 'true' || f['allow-cheats'] === true} onChange={(v) => setF({ ...f, 'allow-cheats': v })} /></SettingRow>
             <SettingRow title={t('Reachable from outside')} text={t('Firewall and router (UDP {a} and {b}).', { a: b.port, b: b.portv6 })}><Switch checked={b.public} onChange={(v) => save({ public: v })} /></SettingRow>

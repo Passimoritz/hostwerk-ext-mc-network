@@ -36,7 +36,7 @@ function migrate(ctx, mc, bedrock, networks) {
     if (!s.geyser.settings) { try { importSettings(bedrock, s); out.imported.push(s.id); } catch { /* unreadable config – defaults */ } }
   }
   for (const p of networks.proxies()) {
-    if (!p.members.length || networks.byProxy(p.id)) continue;
+    if (!p.members.length || networks.byProxy(p.id) || (st.mcNetwork && (st.mcNetwork.dismissed || []).includes(p.id))) continue;
     try { out.adopted.push(networks.adopt(p.id).id); } catch { /* not a network */ }
   }
   out.misplaced = misplaced(mc);

@@ -82,7 +82,7 @@ export function Players({ n, reload }) {
       <div className="card">
         <div className="card-body setting-row">
           <div className="txt"><b>Whitelist for the whole network</b><span>Only players on the list may join – on every server.</span></div>
-          <Switch checked={!!lists.whitelist} onChange={whitelist} />
+          <Switch checked={!!lists.whitelist} onChange={whitelist} label={t('Whitelist for the whole network')} />
         </div>
       </div>
       <div className="grid grid-2 mcn-grid">
