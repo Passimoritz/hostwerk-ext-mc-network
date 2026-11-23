@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.0
+
+- Server icon from any picture: Hostwerk scales it to 64 × 64 pixels; new button to remove the icon again. / Server-Symbol aus einem beliebigen Bild: Hostwerk verkleinert es auf 64 × 64 Pixel; neuer Knopf, um das Symbol wieder zu entfernen.
+- Asks before unsaved changes in the “Servers” tab are lost; a server removed there can be added back before saving. / Fragt nach, bevor ungespeicherte Änderungen im Reiter „Server“ verloren gehen; ein dort entfernter Server lässt sich vor dem Speichern wieder hinzufügen.
+- A network removed only from this page no longer comes back at the next start; status shows “stopping” and “error”. / Ein nur von dieser Seite entferntes Netzwerk kommt beim nächsten Start nicht wieder; der Status zeigt „stoppt“ und „Fehler“.
+- Fixed: file buttons elsewhere in Hostwerk no longer take this extension's style, missing German texts, Forge named in the Velocity hint. / Behoben: Dateiknöpfe anderswo in Hostwerk übernehmen nicht mehr den Stil dieser Erweiterung, fehlende deutsche Texte, Forge im Velocity-Hinweis genannt.
+
 ## 1.5.0
 
 - Takes over the old "Bedrock bridge" extension (SDK 3.8 `replaces`): Hostwerk removes it after the move, and anyone who still has only the bridge gets this extension automatically. / Löst die alte Erweiterung „Bedrock-Brücke“ ab (SDK 3.8 `replaces`): Hostwerk entfernt sie nach dem Umzug, und wer nur noch die Brücke hat, bekommt diese Erweiterung automatisch.
